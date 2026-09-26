@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "local-pharmacy-management"
+version = "1.0.0"
+description = "Local Arabic RTL desktop pharmacy management system with SQLite"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "PyQt6>=6.6.0",
+    "openpyxl>=3.1.0",
+    "xlrd>=2.0.1",
+]
+
+[project.optional-dependencies]
+windows-printing = ["pywin32>=306"]
+dev = []
+
+[project.scripts]
+pharmacy-desktop = "pharmacy_app.main:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
