@@ -67,3 +67,22 @@ input, select, textarea { font-size: 18px; padding: 10px; border: 2px solid #94a
   .form-grid, .mapping-grid { grid-template-columns: 1fr; }
   .totals-grid { grid-template-columns: 1fr 1fr; margin-right: 0; }
 }
+
+.browser-warning {
+  max-width: 900px;
+  margin: 40px auto;
+  border: 3px solid #f97316;
+  background: #fff7ed;
+  line-height: 1.9;
+}
+.browser-warning h1 { color: #9a3412; font-size: 30px; }
+.browser-warning h2 { color: #1e3a8a; }
+.browser-warning code {
+  direction: ltr;
+  display: inline-block;
+  background: #0f172a;
+  color: #f8fafc;
+  padding: 2px 8px;
+  border-radius: 7px;
+}
+.browser-warning li { margin: 8px 0; font-size: 18px; }

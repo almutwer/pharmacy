@@ -9,10 +9,12 @@ type Page = 'pos' | 'inventory' | 'reports' | 'settings';
 export default function App() {
   const [page, setPage] = useState<Page>('pos');
   const [backupWarning, setBackupWarning] = useState(false);
+  const hasPharmacyApi = typeof window !== 'undefined' && Boolean(window.pharmacy);
 
   useEffect(() => {
+    if (!hasPharmacyApi) return;
     window.pharmacy.backup.needsWarning().then(setBackupWarning).catch(() => setBackupWarning(false));
-  }, []);
+  }, [hasPharmacyApi]);
 
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
@@ -29,6 +31,31 @@ export default function App() {
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, []);
+
+  if (!hasPharmacyApi) {
+    return (
+      <main className="app-shell">
+        <section className="page-card browser-warning">
+          <h1>⚠️ تم فتح الواجهة من المتصفح فقط</h1>
+          <p>
+            هذا النظام تطبيق سطح مكتب بواسطة Electron، وليس موقع ويب عادي على الشبكة المحلية.
+            رابط Vite مثل <code>http://localhost:5173</code> أو رابط <code>Network</code> يعرض الواجهة فقط بدون قاعدة البيانات.
+          </p>
+          <p>لذلك قد تظهر شاشة بيضاء أو لا تعمل الأزرار إذا فتحته من المتصفح.</p>
+          <h2>طريقة التشغيل الصحيحة على Windows</h2>
+          <ol>
+            <li>افتح CMD داخل مجلد المشروع.</li>
+            <li>نفذ: <code>npm install</code></li>
+            <li>نفذ: <code>npm run dev</code></li>
+            <li>انتظر نافذة Electron التي تفتح تلقائياً، واستخدمها هي فقط.</li>
+          </ol>
+          <p className="note">
+            إذا كنت تريد نسخة تعمل من متصفح أي جهاز داخل الشبكة المحلية، فهذا يحتاج تحويل معماري إلى Server محلي + Web Client، وليس Electron فقط.
+          </p>
+        </section>
+      </main>
+    );
+  }
 
   return (
     <main className="app-shell">
