@@ -39,6 +39,12 @@ npm install
 npm run desktop
 ```
 
+أو على Windows اضغط مرتين على الملف:
+
+```text
+run-desktop.cmd
+```
+
 إذا أردت وضع التطوير مع Vite استخدم:
 
 ```cmd
@@ -91,6 +97,12 @@ renderer/                 # واجهة React العربية RTL
 ```cmd
 npm install
 npm run desktop
+```
+
+أو على Windows اضغط مرتين على الملف:
+
+```text
+run-desktop.cmd
 ```
 
 إذا أردت وضع التطوير مع Vite استخدم:

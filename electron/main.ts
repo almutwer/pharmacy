@@ -121,13 +121,25 @@ function registerHandlers(): void {
 }
 
 app.whenReady().then(async () => {
-  await db.initialize();
-  registerHandlers();
-  createWindow();
+  try {
+    await db.initialize();
+    registerHandlers();
+    createWindow();
 
-  app.on('activate', () => {
-    if (BrowserWindow.getAllWindows().length === 0) createWindow();
-  });
+    app.on('activate', () => {
+      if (BrowserWindow.getAllWindows().length === 0) createWindow();
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.stack || error.message : String(error);
+    console.error('Failed to start Local Pharmacy app:', message);
+    dialog.showErrorBox('فشل تشغيل نظام الصيدلية', message);
+    app.quit();
+  }
+}).catch((error) => {
+  const message = error instanceof Error ? error.stack || error.message : String(error);
+  console.error('Electron startup failure:', message);
+  dialog.showErrorBox('فشل تشغيل Electron', message);
+  app.quit();
 });
 
 app.on('window-all-closed', () => {

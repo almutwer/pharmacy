@@ -3,20 +3,30 @@ import path from 'node:path';
 import { app } from 'electron';
 import initSqlJs, { Database as SqlJsDatabase, SqlJsStatic, QueryExecResult } from 'sql.js';
 
-function appRoot(): string {
-  return app.isPackaged ? process.resourcesPath : app.getAppPath();
+function findResource(relativePath: string): string {
+  const candidates = [
+    // Development from project root: npm run desktop / npx electron dist-electron/main.js
+    path.join(process.cwd(), relativePath),
+    // Development when Electron treats dist-electron as app path
+    path.join(app.getAppPath(), relativePath),
+    // Compiled service file is dist-electron/services/database.js, so ../../db reaches project db
+    path.join(__dirname, '..', '..', relativePath),
+    // Packaged electron-builder extraResources path
+    path.join(process.resourcesPath, relativePath),
+  ];
+
+  const found = candidates.find((candidate) => fs.existsSync(candidate));
+  if (found) return found;
+
+  throw new Error(`Required resource not found: ${relativePath}. Tried: ${candidates.join(' | ')}`);
 }
 
 function schemaPath(): string {
-  const packagedPath = path.join(process.resourcesPath, 'db', 'schema.sql');
-  const devPath = path.join(appRoot(), 'db', 'schema.sql');
-  return fs.existsSync(packagedPath) ? packagedPath : devPath;
+  return findResource(path.join('db', 'schema.sql'));
 }
 
 function samplePath(): string {
-  const packagedPath = path.join(process.resourcesPath, 'db', 'sample_data.sql');
-  const devPath = path.join(appRoot(), 'db', 'sample_data.sql');
-  return fs.existsSync(packagedPath) ? packagedPath : devPath;
+  return findResource(path.join('db', 'sample_data.sql'));
 }
 
 function ensureDir(dir: string): void {

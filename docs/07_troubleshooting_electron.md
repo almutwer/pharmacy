@@ -80,3 +80,45 @@ http://192.168.x.x:5173
 ```
 
 تعرض واجهة React فقط ولا تحتوي على قاعدة البيانات أو وظائف Electron. التطبيق الحقيقي يفتح كنافذة Desktop.
+
+## خطأ schema.sql داخل dist-electron
+
+إذا ظهر خطأ مثل:
+
+```text
+ENOENT: no such file or directory, open 'C:\pharmacy\dist-electron\db\schema.sql'
+```
+
+فهذا كان بسبب بحث التطبيق عن ملف قاعدة البيانات في مسار خاطئ عند تشغيل Electron مباشرة من `dist-electron`.
+تم تعديل التطبيق ليبحث عن `db/schema.sql` في أكثر من مسار، أهمها مجلد المشروع الرئيسي:
+
+```text
+C:\pharmacy\db\schema.sql
+```
+
+بعد تنزيل النسخة المحدثة شغّل:
+
+```cmd
+npm run build
+npm run desktop
+```
+
+أو فقط اضغط مرتين على:
+
+```text
+run-desktop.cmd
+```
+
+## تشغيل بضغطة مزدوجة
+
+يمكن تشغيل التطبيق من Windows بالضغط مرتين على:
+
+```text
+run-desktop.cmd
+```
+
+وللتشخيص وظهور تفاصيل الأخطاء:
+
+```text
+debug-electron.cmd
+```
