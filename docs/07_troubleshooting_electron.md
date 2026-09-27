@@ -122,3 +122,27 @@ run-desktop.cmd
 ```text
 debug-electron.cmd
 ```
+
+
+## نافذة Electron تفتح لكن الشاشة بيضاء
+
+إذا فتحت نافذة Electron لكن بقيت بيضاء، فالسبب غالباً أن ملفات Vite المبنية تستخدم مسارات مطلقة مثل `/assets/...`، وهذه لا تعمل عند فتح التطبيق عبر `file://` داخل Electron.
+
+تم ضبط `vite.config.ts` على:
+
+```ts
+base: './'
+```
+
+بعد تنزيل النسخة المحدثة نفذ:
+
+```cmd
+npm run build
+npm run desktop
+```
+
+أو شغّل:
+
+```text
+run-desktop.cmd
+```
