@@ -36,6 +36,12 @@ https://nodejs.org
 
 ```cmd
 npm install
+npm run desktop
+```
+
+إذا أردت وضع التطوير مع Vite استخدم:
+
+```cmd
 npm run dev
 ```
 
@@ -76,6 +82,7 @@ renderer/                 # واجهة React العربية RTL
 - `docs/04_installation_windows.md` — دليل النسخة القديمة Python/PyQt6.
 - `docs/05_user_manual_ar.md` — دليل المستخدم العربي.
 - `docs/06_electron_windows.md` — دليل تشغيل Electron على Windows.
+- `docs/07_troubleshooting_electron.md` — حل مشاكل شاشة بيضاء أو عدم فتح Electron.
 
 ## النسخة القديمة Python
 
@@ -83,5 +90,11 @@ renderer/                 # واجهة React العربية RTL
 
 ```cmd
 npm install
+npm run desktop
+```
+
+إذا أردت وضع التطوير مع Vite استخدم:
+
+```cmd
 npm run dev
 ```

@@ -5,15 +5,18 @@
   "main": "dist-electron/main.js",
   "private": true,
   "scripts": {
-    "start": "npm run dev",
-    "dev": "npm run build:main && concurrently -k \"vite --host 0.0.0.0\" \"wait-on http://127.0.0.1:5173 && cross-env VITE_DEV_SERVER_URL=http://127.0.0.1:5173 electron dist-electron/main.js\"",
+    "start": "npm run desktop",
+    "dev": "npm run build:main && concurrently -k -n VITE,ELECTRON -c blue,green \"npm:dev:web\" \"npm:dev:electron\"",
     "build:main": "tsc -p tsconfig.node.json",
     "build:renderer": "vite build",
     "build": "npm run build:main && npm run build:renderer",
     "dist": "npm run build && electron-builder --win --x64",
     "dist:portable": "npm run build && electron-builder --win portable --x64",
     "test:electron": "npm run build",
-    "init-db": "node dist-electron/tools/init-db.js"
+    "dev:web": "vite --host 0.0.0.0 --port 5173",
+    "dev:electron": "wait-on tcp:127.0.0.1:5173 && cross-env VITE_DEV_SERVER_URL=http://127.0.0.1:5173 electron --enable-logging dist-electron/main.js",
+    "desktop": "npm run build && electron --enable-logging dist-electron/main.js",
+    "electron:direct": "electron --enable-logging dist-electron/main.js"
   },
   "dependencies": {
     "react": "^18.3.1",
