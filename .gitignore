@@ -27,3 +27,9 @@ Thumbs.db
 
 # Generated archives
 *.zip
+
+# Node/Electron
+node_modules/
+dist-electron/
+release/
+*.tsbuildinfo

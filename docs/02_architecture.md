@@ -4,13 +4,13 @@
 
 ## التقنية المختارة
 
-تم اختيار **Python + PyQt6 + SQLite** لأنها أبسط للتشغيل المحلي، وأسهل للنسخ الاحتياطي، ولا تحتاج إلى خادم أو Cloud.
+تم تحويل التطبيق إلى **Electron + React + SQLite file عبر sql.js** حتى يعمل كبرنامج Desktop حديث على Windows، مع إمكانية بناء ملف EXE للمستخدم النهائي بدون الحاجة إلى Python.
 
 ## الرسم المعماري
 
 ```mermaid
 flowchart RL
-    User[الصيدلي] --> UI[PyQt6 Arabic RTL Desktop UI]
+    User[الصيدلي] --> UI[Electron + React Arabic RTL Desktop UI]
     Scanner[USB Barcode Scanner\nKeyboard Input] --> UI
     UI --> Services[Application Services]
 
@@ -39,36 +39,27 @@ flowchart RL
 db/
   schema.sql              # قاعدة البيانات والجداول والـ triggers
   sample_data.sql          # بيانات تجريبية
+electron/
+  main.ts                  # Electron main process
+  preload.ts               # API bridge آمن
+  services/                # SQLite/import/inventory/sales/reports/backup
+renderer/
+  App.tsx                  # واجهة React العربية
+  pages/                   # POS / Inventory / Reports / Settings
+package.json               # أوامر npm والبناء
+
+# ملفات Python القديمة بقيت كمرجع فقط:
 src/pharmacy_app/
-  database.py              # تهيئة SQLite والمعاملات
-  catalog_import.py        # استيراد دليل الأدوية
-  inventory.py             # إضافة وتعديل المخزون
-  sales.py                 # POS والفواتير وخصم المخزون
-  reports.py               # التقارير
-  backup.py                # النسخ الاحتياطي والاسترجاع
-  receipt_printer.py       # إيصالات حرارية أو ملف نصي
-  ui/main_window.py        # واجهة عربية RTL
 scripts/
-  init_db.py
-  load_sample_data.py
-  run_desktop.py
 docs/
   ملفات التوثيق ودليل المستخدم
 ```
 
 ## مسار البيانات على Windows
 
-افتراضياً يتم حفظ قاعدة البيانات في:
+افتراضياً يتم حفظ قاعدة البيانات في مجلد بيانات Electron الخاص بالتطبيق، ويمكن رؤية المسار من شاشة: `الإعدادات → معلومات النظام`.
 
-```text
-%APPDATA%\LocalPharmacy\pharmacy.db
-```
-
-والنسخ الاحتياطية في:
-
-```text
-%APPDATA%\LocalPharmacy\backups\
-```
+ويمكن تحديد مسار مخصص عبر `PHARMACY_DB_PATH`.
 
 يمكن تغيير المسار بمتغيرات البيئة:
 

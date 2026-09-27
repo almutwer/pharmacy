@@ -1,6 +1,12 @@
 # Local Pharmacy Management Desktop Application
 
-نظام إدارة صيدلية محلي بالكامل بواجهة عربية RTL، يعمل على جهاز Windows واحد باستخدام Python + PyQt6 + SQLite.
+نظام إدارة صيدلية محلي بالكامل بواجهة عربية RTL. النسخة الأساسية الآن تعمل بواسطة:
+
+```text
+Electron + React + SQLite file via sql.js
+```
+
+لا يحتاج التطبيق إلى Cloud أو خادم أو إنترنت أثناء العمليات اليومية.
 
 ## الميزات الأساسية
 
@@ -10,38 +16,72 @@
   - `sales` / `sale_items`: المبيعات والفواتير.
 - استيراد دليل الأدوية من CSV / Excel / JSON مع معاينة ومطابقة أعمدة.
 - إضافة مخزون بالباركود مع السعر والدفعة والصلاحية والمورد.
-- POS بسيط باختصارات لوحة المفاتيح.
+- نقطة بيع POS بواجهة عربية كبيرة وواضحة.
 - منع البيع عند انتهاء الصلاحية أو نفاد المخزون.
 - معاملات SQLite آمنة للفواتير.
 - أرقام فواتير متسلسلة: `INV-YYYY-NNNNNN`.
 - تقارير عملية.
 - نسخ احتياطي محلي ونسخ إلى USB.
-- حفظ/طباعة إيصالات حرارية.
+- حفظ إيصالات نصية قابلة للطباعة.
 
-## البدء السريع
+## تشغيل نسخة Electron على Windows
 
-```bash
-python -m venv .venv
-source .venv/bin/activate  # Windows: .venv\Scripts\activate
-pip install -r requirements.txt
-python scripts/init_db.py
-python scripts/load_sample_data.py   # اختياري
-python scripts/run_desktop.py
+ثبّت Node.js LTS من:
+
+```text
+https://nodejs.org
 ```
 
-## الملفات المهمة
+ثم داخل مجلد المشروع:
+
+```cmd
+npm install
+npm run dev
+```
+
+لبناء ملف EXE:
+
+```cmd
+npm run dist
+```
+
+ستظهر ملفات Windows داخل:
+
+```text
+release\
+```
+
+## ملفات Electron المهمة
+
+```text
+package.json              # أوامر npm والبناء
+index.html                # مدخل واجهة React
+vite.config.ts            # إعداد Vite
+electron/main.ts          # Electron main process
+electron/preload.ts       # API آمن بين الواجهة وقاعدة البيانات
+electron/services/        # خدمات SQLite والاستيراد والمبيعات والتقارير والنسخ
+renderer/                 # واجهة React العربية RTL
+```
+
+## قاعدة البيانات
 
 - `db/schema.sql` — الجداول والقيود والـ triggers.
 - `db/sample_data.sql` — 50 دواء، 10 سجلات مخزون، 5 فواتير.
+
+## التوثيق
+
+- `docs/01_database_schema.md` — تصميم قاعدة البيانات.
 - `docs/02_architecture.md` — مخطط المعمارية.
 - `docs/03_wireframes.md` — Wireframes عربية.
-- `docs/04_installation_windows.md` — دليل التثبيت على Windows.
+- `docs/04_installation_windows.md` — دليل النسخة القديمة Python/PyQt6.
 - `docs/05_user_manual_ar.md` — دليل المستخدم العربي.
+- `docs/06_electron_windows.md` — دليل تشغيل Electron على Windows.
 
-## تشغيل بدون واجهة لاختبار قاعدة البيانات
+## النسخة القديمة Python
 
-```bash
-PYTHONPATH=src python -m pharmacy_app.main --init-db --db /tmp/pharmacy.db
-PYTHONPATH=src python -m pharmacy_app.main --init-db --load-sample-data --db /tmp/pharmacy_sample.db
+تم الإبقاء على ملفات Python/PyQt6 كمرجع وبديل، لكن التشغيل الموصى به الآن هو Electron:
+
+```cmd
+npm install
+npm run dev
 ```
-
