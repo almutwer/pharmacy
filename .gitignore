@@ -13,3 +13,5 @@ server/data/
 .DS_Store
 .vscode/
 .idea/
+release/
+electron/out/

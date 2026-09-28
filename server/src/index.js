@@ -9,6 +9,7 @@ import path from 'node:path';
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
+import db from './lib/db.js';
 import { migrate } from './lib/schema.js';
 import { HttpError } from './lib/helpers.js';
 
@@ -36,7 +37,13 @@ app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 if (process.env.NODE_ENV !== 'test') app.use(morgan('dev'));
 
-app.get('/api/health', (req, res) => res.json({ ok: true, name: 'نظام إدارة الصيدليات', time: new Date().toISOString() }));
+app.get('/api/health', (req, res) => res.json({
+  ok: true,
+  name: 'نظام إدارة الصيدليات',
+  driver: db.driver,
+  desktop: !!process.versions.electron,
+  time: new Date().toISOString(),
+}));
 
 app.use('/api/auth', authRoutes);
 app.use('/api/users', usersRoutes);
@@ -51,8 +58,10 @@ app.use('/api/expenses', expensesRoutes);
 app.use('/api/reports', reportsRoutes);
 app.use('/api/settings', settingsRoutes);
 
-// خدمة واجهة الإنتاج إن وُجدت
-const clientDist = path.resolve(__dirname, '../../client/dist');
+// خدمة واجهة الإنتاج إن وُجدت (CLIENT_DIST يُستخدم في تطبيق سطح المكتب)
+const clientDist = process.env.CLIENT_DIST
+  ? path.resolve(process.env.CLIENT_DIST)
+  : path.resolve(__dirname, '../../client/dist');
 if (fs.existsSync(clientDist)) {
   app.use(express.static(clientDist));
   app.get(/^(?!\/api).*/, (req, res) => res.sendFile(path.join(clientDist, 'index.html')));
@@ -71,6 +80,10 @@ app.use((err, req, res, next) => {
   });
 });
 
-app.listen(PORT, HOST, () => {
+const server = app.listen(PORT, HOST, () => {
   console.log(`✅ خادم نظام الصيدلية يعمل على http://${HOST}:${PORT}`);
+  console.log(`   محرك قاعدة البيانات: ${db.driver}  |  الملف: ${db.file}`);
 });
+
+export { app, server };
+export default app;

@@ -3,6 +3,15 @@
  */
 import db from './db.js';
 import bcrypt from 'bcryptjs';
+import { DRUG_CATALOG } from './drug-catalog.js';
+
+/** توليد باركود EAN-13 صالح (12 رقماً + رقم تحقق) */
+function ean13(base) {
+  const body = String(base).padStart(12, '0').slice(0, 12);
+  let sum = 0;
+  for (let i = 0; i < 12; i += 1) sum += Number(body[i]) * (i % 2 === 0 ? 1 : 3);
+  return body + ((10 - (sum % 10)) % 10);
+}
 
 export const DEFAULT_SETTINGS = {
   pharmacy_name: 'صيدلية الشفاء',
@@ -299,6 +308,31 @@ export function migrate() {
       password_hash: bcrypt.hashSync('admin123', 10),
       role: 'admin',
       active: 1,
+    });
+  }
+
+  // دليل الأدوية المرجعي — يُعبّأ مرة واحدة فقط عند التثبيت الجديد
+  const catalogCount = db.value('SELECT COUNT(*) AS c FROM drug_catalog');
+  if (!catalogCount) {
+    db.tx(() => {
+      let seq = 0;
+      for (const [trade, generic, form, strength, category, manufacturer, country, cost, price] of DRUG_CATALOG) {
+        seq += 1;
+        db.insert('drug_catalog', {
+          trade_name: trade,
+          generic_name: generic === '-' ? null : generic,
+          form,
+          strength: strength === '-' ? null : strength,
+          unit: form.includes('شراب') || form.includes('نقط') ? 'زجاجة' : 'علبة',
+          category,
+          manufacturer,
+          country,
+          barcode: ean13(628000000000 + seq),
+          default_purchase_price: cost,
+          default_sale_price: price,
+          active: 1,
+        });
+      }
     });
   }
 }

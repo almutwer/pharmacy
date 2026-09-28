@@ -1,12 +1,12 @@
 /**
  * طبقة الوصول لقاعدة البيانات (SQLite)
- * تعتمد على node:sqlite المدمج في Node.js (DatabaseSync)
- * وتوفّر واجهة مبسطة: get / all / run / tx
+ * تدعم محركين بالتبادل: better-sqlite3 (داخل Electron) و node:sqlite (Node.js 22+)
+ * وتوفّر واجهة مبسطة موحّدة: get / all / value / run / insert / update / tx
  */
-import { DatabaseSync } from 'node:sqlite';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = process.env.DATA_DIR || path.resolve(__dirname, '../../data');
@@ -14,7 +14,44 @@ const DB_FILE = process.env.DB_FILE || path.join(DATA_DIR, 'pharmacy.db');
 
 if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
-const database = new DatabaseSync(DB_FILE);
+/**
+ * اختيار محرك SQLite تلقائياً:
+ *  1) better-sqlite3  → مطلوب عند التشغيل داخل Electron (تطبيق سطح المكتب)
+ *  2) node:sqlite     → المحرك المدمج في Node.js 22+ (وضع الخادم/التطوير)
+ * كلا المحركين يوفران نفس الواجهة: prepare().run/get/all و exec
+ */
+function openDatabase() {
+  const require = createRequire(import.meta.url);
+  const inElectron = !!process.versions.electron;
+  const errors = [];
+
+  // (1) better-sqlite3 إن كان مثبتاً ومبنياً بشكل صحيح
+  try {
+    const Database = require('better-sqlite3');
+    return { db: new Database(DB_FILE), driver: 'better-sqlite3' };
+  } catch (err) {
+    errors.push(`better-sqlite3: ${err.message}`);
+  }
+
+  // (2) محرك Node.js المدمج
+  try {
+    // eslint-disable-next-line global-require
+    const { DatabaseSync } = require('node:sqlite');
+    return { db: new DatabaseSync(DB_FILE), driver: 'node:sqlite' };
+  } catch (err) {
+    errors.push(`node:sqlite: ${err.message}`);
+  }
+
+  throw new Error(
+    'تعذر فتح قاعدة البيانات — لا يوجد محرك SQLite متاح.\n'
+    + (inElectron
+      ? 'داخل Electron يجب تثبيت وإعادة بناء better-sqlite3 عبر الأمر:\n  npm run app:setup\n'
+      : 'شغّل Node.js 22 أو أحدث مع الراية --experimental-sqlite، أو ثبّت better-sqlite3.\n')
+    + `التفاصيل:\n - ${errors.join('\n - ')}`,
+  );
+}
+
+const { db: database, driver: DB_DRIVER } = openDatabase();
 database.exec('PRAGMA journal_mode = WAL;');
 database.exec('PRAGMA foreign_keys = ON;');
 
@@ -40,6 +77,8 @@ function plain(row) {
 export const db = {
   raw: database,
   file: DB_FILE,
+  dir: DATA_DIR,
+  driver: DB_DRIVER,
 
   exec(sql) {
     database.exec(sql);
