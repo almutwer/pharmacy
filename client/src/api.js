@@ -42,6 +42,45 @@ const qs = (params = {}) => {
   return clean.length ? `?${new URLSearchParams(clean)}` : '';
 };
 
+/** تنزيل ملف (Excel / JSON) مع إرفاق رمز الدخول */
+export async function downloadFile(path, filename, params) {
+  const res = await fetch(`/api${path}${qs(params)}`, {
+    headers: { Authorization: `Bearer ${getToken()}` },
+  });
+  if (!res.ok) {
+    let message = 'تعذر تنزيل الملف';
+    try { message = (await res.json())?.error || message; } catch { /* ملف غير نصي */ }
+    throw new ApiError(message, res.status);
+  }
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+/** قراءة ملف من جهاز المستخدم كسلسلة base64 */
+export const fileToBase64 = (file) => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => resolve(String(reader.result).split(',')[1] || '');
+  reader.onerror = () => reject(new Error('تعذر قراءة الملف'));
+  reader.readAsDataURL(file);
+});
+
+/** قراءة ملف JSON من جهاز المستخدم */
+export const readJsonFile = (file) => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = () => {
+    try { resolve(JSON.parse(String(reader.result))); } catch { reject(new Error('الملف ليس بصيغة JSON صالحة')); }
+  };
+  reader.onerror = () => reject(new Error('تعذر قراءة الملف'));
+  reader.readAsText(file);
+});
+
 export const api = {
   get: (path, params) => request('GET', `${path}${qs(params)}`),
   post: (path, body) => request('POST', path, body ?? {}),

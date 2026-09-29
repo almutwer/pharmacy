@@ -8,6 +8,8 @@ import { z } from 'zod';
 import db from '../lib/db.js';
 import { requireAuth, requireRole } from '../lib/auth.js';
 import { wrap, parse, notFound, nowStamp, logActivity, HttpError } from '../lib/helpers.js';
+import { createWorkbook, addSheet, addGuideSheet, sendWorkbook, readSheetRows, decodeUpload } from '../lib/excel.js';
+import { CATALOG_COLUMNS, exportColumns, templateColumns, writableColumns } from '../lib/io-columns.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -81,6 +83,158 @@ router.get(
       [...params, limit, (page - 1) * limit],
     );
     res.json({ data, total, page, limit, pages: Math.ceil(total / limit) || 1 });
+  }),
+);
+
+/* ==================== تصدير / استيراد Excel ==================== */
+
+/** تصدير الدليل كملف Excel (يحترم الفلاتر الحالية) */
+router.get(
+  '/export',
+  wrap(async (req, res) => {
+    const { q, category, form, manufacturer } = req.query;
+    const where = ['1=1'];
+    const params = [];
+    if (q) {
+      where.push('(c.trade_name LIKE ? OR c.generic_name LIKE ? OR c.barcode LIKE ? OR c.manufacturer LIKE ?)');
+      const like = `%${q}%`;
+      params.push(like, like, like, like);
+    }
+    if (category) { where.push('c.category = ?'); params.push(category); }
+    if (form) { where.push('c.form = ?'); params.push(form); }
+    if (manufacturer) { where.push('c.manufacturer = ?'); params.push(manufacturer); }
+    if (req.query.active !== undefined && req.query.active !== '') {
+      where.push('c.active = ?'); params.push(Number(req.query.active));
+    }
+
+    const rows = db.all(
+      `SELECT c.*, (SELECT COUNT(*) FROM products p WHERE p.catalog_id = c.id) AS in_inventory
+       FROM drug_catalog c WHERE ${where.join(' AND ')} ORDER BY c.trade_name COLLATE NOCASE`,
+      params,
+    );
+
+    const wb = createWorkbook();
+    addSheet(wb, {
+      name: 'دليل الأدوية',
+      title: 'دليل الأدوية المرجعي',
+      note: `عدد الأدوية: ${rows.length} — تم التصدير في ${nowStamp()}`,
+      columns: exportColumns(CATALOG_COLUMNS),
+      rows,
+    });
+    logActivity(req.user.id, 'export', 'drug_catalog', null, `تصدير ${rows.length} دواء إلى Excel`);
+    await sendWorkbook(res, wb, `دليل-الأدوية-${new Date().toISOString().slice(0, 10)}.xlsx`);
+  }),
+);
+
+/** قالب Excel فارغ للاستيراد */
+router.get(
+  '/template',
+  wrap(async (req, res) => {
+    const cols = templateColumns(CATALOG_COLUMNS);
+    const wb = createWorkbook();
+    addSheet(wb, {
+      name: 'دليل الأدوية',
+      columns: cols,
+      rows: [
+        {
+          trade_name: 'سيتال', generic_name: 'باراسيتامول', form: 'أقراص', strength: '500 مجم',
+          unit: 'علبة', category: 'مسكنات وخافضات الحرارة', manufacturer: 'EIPICO', country: 'مصر',
+          default_purchase_price: 5, default_sale_price: 9, requires_prescription: 0, active: 1,
+        },
+      ],
+    });
+    addGuideSheet(wb, {
+      columns: cols,
+      title: 'تعليمات استيراد دليل الأدوية',
+      lines: [
+        '١) اكتب بيانات الأدوية في ورقة «دليل الأدوية» تحت العناوين الملوّنة مباشرة، ولا تغيّر أسماء الأعمدة.',
+        '٢) احذف صف المثال قبل الرفع.',
+        '٣) عمود «المعرف» يُترك فارغاً للأدوية الجديدة. إن وضعت رقم معرف موجود سيتم تحديث بيانات ذلك الدواء.',
+        '٤) إن لم تضع معرفاً وتطابق «الاسم التجاري + التركيز» مع دواء موجود، سيُحدَّث تلقائياً (أو يُتجاهل حسب الخيار الذي تختاره عند الرفع).',
+        '٥) الأعمدة المنطقية تقبل: نعم / لا.',
+        '٦) يمكنك أيضاً رفع ملف CSV بنفس العناوين.',
+      ],
+    });
+    await sendWorkbook(res, wb, 'قالب-دليل-الأدوية.xlsx');
+  }),
+);
+
+/** استيراد الدليل من ملف Excel/CSV */
+router.post(
+  '/import-file',
+  requireRole('manager', 'pharmacist'),
+  wrap(async (req, res) => {
+    const body = parse(z.object({
+      file: z.string().min(1),
+      filename: z.string().optional().default(''),
+      mode: z.enum(['upsert', 'insert']).default('upsert'),
+      dry_run: z.coerce.boolean().default(false),
+    }), req.body);
+
+    const buffer = decodeUpload(body.file);
+    const { rows, unknown, matched } = await readSheetRows(buffer, CATALOG_COLUMNS, body.filename);
+    if (!rows.length) throw new HttpError(400, 'لا توجد صفوف بيانات في الملف');
+    if (rows.length > 5000) throw new HttpError(400, 'الحد الأقصى 5000 صف في الملف الواحد');
+
+    const writable = writableColumns(CATALOG_COLUMNS).map((c) => c.key);
+    const result = { total: rows.length, created: 0, updated: 0, skipped: 0, errors: [], matched, unknown };
+
+    const run = () => {
+      for (const row of rows) {
+        const label = row.trade_name || `صف ${row.__row}`;
+        try {
+          let existing = null;
+          if (row.id) {
+            existing = db.get('SELECT * FROM drug_catalog WHERE id = ?', [row.id]);
+            if (!existing) throw new Error(`لا يوجد دواء بالمعرف ${row.id}`);
+          } else if (row.trade_name) {
+            existing = db.get(
+              "SELECT * FROM drug_catalog WHERE lower(trade_name) = lower(?) AND IFNULL(strength,'') = IFNULL(?,'')",
+              [row.trade_name, row.strength || ''],
+            );
+          }
+
+          if (!existing && !row.trade_name) throw new Error('الاسم التجاري مطلوب');
+
+          if (row.barcode) {
+            const dup = db.get('SELECT id FROM drug_catalog WHERE barcode = ? AND id <> ?', [row.barcode, existing?.id || 0]);
+            if (dup) throw new Error(`الباركود ${row.barcode} مستخدم لدواء آخر`);
+          }
+
+          const payload = {};
+          for (const key of writable) {
+            if (row[key] !== undefined && row[key] !== null) payload[key] = row[key];
+          }
+
+          if (existing) {
+            if (body.mode === 'insert') { result.skipped += 1; continue; }
+            if (!Object.keys(payload).length) { result.skipped += 1; continue; }
+            if (!body.dry_run) {
+              db.update('drug_catalog', { ...parse(schema.partial(), payload), updated_at: nowStamp() }, 'id = ?', [existing.id]);
+            }
+            result.updated += 1;
+          } else {
+            const data = parse(schema, payload);
+            if (!body.dry_run) db.insert('drug_catalog', data);
+            result.created += 1;
+          }
+        } catch (err) {
+          result.errors.push({ row: row.__row, name: label, message: err.message || 'خطأ غير معروف' });
+          result.skipped += 1;
+        }
+      }
+    };
+
+    if (body.dry_run) run();
+    else db.tx(run);
+
+    if (!body.dry_run) {
+      logActivity(
+        req.user.id, 'import', 'drug_catalog', null,
+        `Excel: ${result.created} جديد، ${result.updated} محدّث، ${result.skipped} متجاهل`,
+      );
+    }
+    res.json({ ok: true, dry_run: body.dry_run, ...result });
   }),
 );
 

@@ -28,7 +28,7 @@ export const DEFAULT_SETTINGS = {
   allow_negative_stock: '0',
 };
 
-export function migrate() {
+export function migrate({ seedCatalog = true } = {}) {
   db.exec(`
   -- ===== المستخدمون والصلاحيات =====
   CREATE TABLE IF NOT EXISTS users (
@@ -313,7 +313,7 @@ export function migrate() {
 
   // دليل الأدوية المرجعي — يُعبّأ مرة واحدة فقط عند التثبيت الجديد
   const catalogCount = db.value('SELECT COUNT(*) AS c FROM drug_catalog');
-  if (!catalogCount) {
+  if (seedCatalog && !catalogCount) {
     db.tx(() => {
       let seq = 0;
       for (const [trade, generic, form, strength, category, manufacturer, country, cost, price] of DRUG_CATALOG) {

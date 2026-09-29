@@ -34,7 +34,7 @@ migrate();
 const app = express();
 app.disable('x-powered-by');
 app.use(cors());
-app.use(express.json({ limit: '10mb' }));
+app.use(express.json({ limit: '60mb' }));
 if (process.env.NODE_ENV !== 'test') app.use(morgan('dev'));
 
 app.get('/api/health', (req, res) => res.json({

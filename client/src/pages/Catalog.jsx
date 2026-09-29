@@ -8,6 +8,7 @@ import {
   PageHeader, Card, Table, Pagination, Badge, Field, Input, Select, Textarea, Modal, useToast,
   StatCard, ConfirmDialog, EmptyState,
 } from '../components/ui.jsx';
+import ExcelIO from '../components/ExcelIO.jsx';
 import { fmtNum, fmtInt, DOSAGE_FORMS, UNITS } from '../lib/format.js';
 
 const emptyDrug = () => ({
@@ -74,10 +75,22 @@ export default function Catalog() {
     <div>
       <PageHeader
         title="دليل الأدوية" subtitle="مرجع شامل للأدوية — لا يظهر في المخزون ويُستخدم لإدخال الأدوية بسرعة" icon={BookOpen}
-        actions={can('pharmacist') && (
+        actions={(
           <>
-            {can('manager') && <button className="btn-outline" onClick={() => setImportOpen(true)}><Upload className="h-4 w-4" /> استيراد</button>}
-            <button className="btn-primary" onClick={() => setForm(emptyDrug())}><Plus className="h-4 w-4" /> دواء جديد</button>
+            <ExcelIO
+              entity="catalog"
+              filters={filters}
+              canImport={can('pharmacist')}
+              onDone={() => { load(); loadMeta(); }}
+            />
+            {can('pharmacist') && (
+              <>
+                <button className="btn-outline" onClick={() => setImportOpen(true)} title="لصق بيانات نصية بصيغة CSV">
+                  <Upload className="h-4 w-4" /> لصق نصي
+                </button>
+                <button className="btn-primary" onClick={() => setForm(emptyDrug())}><Plus className="h-4 w-4" /> دواء جديد</button>
+              </>
+            )}
           </>
         )}
       />

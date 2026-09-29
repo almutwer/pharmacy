@@ -7,6 +7,8 @@ import db from '../lib/db.js';
 import { requireAuth, requireRole } from '../lib/auth.js';
 import { wrap, parse, notFound, HttpError, nowStamp, logActivity, getSettingNumber } from '../lib/helpers.js';
 import { addBatch, recordMovement } from '../lib/stock.js';
+import { createWorkbook, addSheet, addGuideSheet, sendWorkbook, readSheetRows, decodeUpload } from '../lib/excel.js';
+import { PRODUCT_COLUMNS, exportColumns, templateColumns, writableColumns } from '../lib/io-columns.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -110,6 +112,186 @@ router.get(
       [like, like, q, q],
     );
     res.json({ data: rows });
+  }),
+);
+
+/* ==================== تصدير / استيراد Excel ==================== */
+
+/** تصدير المخزون كملف Excel */
+router.get(
+  '/export',
+  wrap(async (req, res) => {
+    const { q, category, status } = req.query;
+    const where = ['1=1'];
+    const params = [];
+    if (q) {
+      where.push('(p.name LIKE ? OR p.generic_name LIKE ? OR p.barcode LIKE ?)');
+      const like = `%${q}%`;
+      params.push(like, like, like);
+    }
+    if (category) { where.push('p.category = ?'); params.push(category); }
+    if (req.query.active !== undefined && req.query.active !== '') {
+      where.push('p.active = ?'); params.push(Number(req.query.active));
+    }
+    const low = getSettingNumber('low_stock_level', 10);
+    if (status === 'low') where.push(`COALESCE(s.qty, 0) > 0 AND COALESCE(s.qty, 0) <= COALESCE(NULLIF(p.reorder_level, 0), ${low})`);
+    if (status === 'out') where.push('COALESCE(s.qty, 0) <= 0');
+
+    const rows = db.all(
+      `SELECT ${STOCK_SELECT} FROM products p ${STOCK_JOIN} WHERE ${where.join(' AND ')} ORDER BY p.name COLLATE NOCASE`,
+      params,
+    );
+
+    const totalQty = rows.reduce((a, r) => a + Number(r.stock_qty || 0), 0);
+    const totalCost = rows.reduce((a, r) => a + Number(r.stock_cost_value || 0), 0);
+
+    const wb = createWorkbook();
+    addSheet(wb, {
+      name: 'المخزون',
+      title: 'جرد أصناف المخزون',
+      note: `عدد الأصناف: ${rows.length} — إجمالي الكميات: ${totalQty} — قيمة التكلفة: ${totalCost.toFixed(2)} — بتاريخ ${nowStamp()}`,
+      columns: exportColumns(PRODUCT_COLUMNS),
+      rows,
+    });
+    logActivity(req.user.id, 'export', 'products', null, `تصدير ${rows.length} صنف إلى Excel`);
+    await sendWorkbook(res, wb, `المخزون-${new Date().toISOString().slice(0, 10)}.xlsx`);
+  }),
+);
+
+/** قالب Excel فارغ لاستيراد الأصناف */
+router.get(
+  '/template',
+  wrap(async (req, res) => {
+    const cols = templateColumns(PRODUCT_COLUMNS);
+    const wb = createWorkbook();
+    addSheet(wb, {
+      name: 'المخزون',
+      columns: cols,
+      rows: [
+        {
+          name: 'سيتال 500 مجم', generic_name: 'باراسيتامول', form: 'أقراص', strength: '500 مجم',
+          unit: 'علبة', category: 'مسكنات وخافضات الحرارة', manufacturer: 'EIPICO',
+          purchase_price: 5, sale_price: 9, reorder_level: 10, location: 'رف A1',
+          requires_prescription: 0, active: 1, opening_qty: 50, opening_batch_no: 'B-1001',
+          opening_expiry: '2027-12-31',
+        },
+      ],
+    });
+    addGuideSheet(wb, {
+      columns: cols,
+      title: 'تعليمات استيراد أصناف المخزون',
+      lines: [
+        '١) اكتب الأصناف في ورقة «المخزون» تحت العناوين الملوّنة، ولا تغيّر أسماء الأعمدة.',
+        '٢) احذف صف المثال قبل الرفع.',
+        '٣) عمود «المعرف» فارغ = صنف جديد، وبرقم موجود = تحديث بيانات الصنف.',
+        '٤) «رصيد افتتاحي» يُسجَّل كدفعة جديدة للأصناف الجديدة فقط، ويُتجاهل عند تحديث صنف موجود — لتعديل أرصدة صنف قائم استخدم «تسوية مخزنية».',
+        '٥) الكميات والأسعار أرقام فقط، والتواريخ بصيغة YYYY-MM-DD.',
+        '٦) يمكنك أيضاً رفع ملف CSV بنفس العناوين.',
+      ],
+    });
+    await sendWorkbook(res, wb, 'قالب-المخزون.xlsx');
+  }),
+);
+
+/** استيراد الأصناف من ملف Excel/CSV */
+router.post(
+  '/import-file',
+  requireRole('manager', 'pharmacist'),
+  wrap(async (req, res) => {
+    const body = parse(z.object({
+      file: z.string().min(1),
+      filename: z.string().optional().default(''),
+      mode: z.enum(['upsert', 'insert']).default('upsert'),
+      dry_run: z.coerce.boolean().default(false),
+    }), req.body);
+
+    const buffer = decodeUpload(body.file);
+    const { rows, unknown, matched } = await readSheetRows(buffer, PRODUCT_COLUMNS, body.filename);
+    if (!rows.length) throw new HttpError(400, 'لا توجد صفوف بيانات في الملف');
+    if (rows.length > 5000) throw new HttpError(400, 'الحد الأقصى 5000 صف في الملف الواحد');
+
+    const writable = writableColumns(PRODUCT_COLUMNS)
+      .filter((c) => !c.importOnly)
+      .map((c) => c.key);
+
+    const result = {
+      total: rows.length, created: 0, updated: 0, skipped: 0, opening_units: 0, errors: [], matched, unknown,
+    };
+
+    const run = () => {
+      for (const row of rows) {
+        const label = row.name || `صف ${row.__row}`;
+        try {
+          let existing = null;
+          if (row.id) {
+            existing = db.get('SELECT * FROM products WHERE id = ?', [row.id]);
+            if (!existing) throw new Error(`لا يوجد صنف بالمعرف ${row.id}`);
+          } else if (row.barcode) {
+            existing = db.get('SELECT * FROM products WHERE barcode = ?', [row.barcode]);
+          }
+          if (!existing && row.name) {
+            existing = db.get('SELECT * FROM products WHERE lower(name) = lower(?)', [row.name]);
+          }
+          if (!existing && !row.name) throw new Error('اسم الصنف مطلوب');
+
+          if (row.barcode) {
+            const dup = db.get('SELECT id FROM products WHERE barcode = ? AND id <> ?', [row.barcode, existing?.id || 0]);
+            if (dup) throw new Error(`الباركود ${row.barcode} مستخدم لصنف آخر`);
+          }
+
+          const payload = {};
+          for (const key of writable) {
+            if (row[key] !== undefined && row[key] !== null) payload[key] = row[key];
+          }
+
+          if (existing) {
+            if (body.mode === 'insert') { result.skipped += 1; continue; }
+            if (!Object.keys(payload).length) { result.skipped += 1; continue; }
+            if (!body.dry_run) {
+              db.update('products', { ...parse(schema.partial(), payload), updated_at: nowStamp() }, 'id = ?', [existing.id]);
+            }
+            result.updated += 1;
+          } else {
+            const data = parse(schema, payload);
+            const opening = Number(row.opening_qty || 0);
+            if (!body.dry_run) {
+              const { lastInsertRowid } = db.insert('products', data);
+              if (opening > 0) {
+                const batchId = addBatch({
+                  productId: lastInsertRowid,
+                  batchNo: row.opening_batch_no || 'OPENING',
+                  expiryDate: row.opening_expiry || null,
+                  qty: opening,
+                  costPrice: data.purchase_price,
+                  salePrice: data.sale_price,
+                });
+                recordMovement({
+                  productId: lastInsertRowid, batchId, type: 'adjust_in', qty: opening,
+                  unitCost: data.purchase_price, refType: 'import', note: 'رصيد افتتاحي (استيراد Excel)',
+                  userId: req.user.id,
+                });
+              }
+            }
+            if (opening > 0) result.opening_units += opening;
+            result.created += 1;
+          }
+        } catch (err) {
+          result.errors.push({ row: row.__row, name: label, message: err.message || 'خطأ غير معروف' });
+          result.skipped += 1;
+        }
+      }
+    };
+
+    if (body.dry_run) run();
+    else db.tx(run);
+
+    if (!body.dry_run) {
+      logActivity(
+        req.user.id, 'import', 'products', null,
+        `Excel: ${result.created} جديد، ${result.updated} محدّث، ${result.skipped} متجاهل`,
+      );
+    }
+    res.json({ ok: true, dry_run: body.dry_run, ...result });
   }),
 );
 

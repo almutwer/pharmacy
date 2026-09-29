@@ -10,6 +10,7 @@ import {
   PageHeader, Card, Table, Pagination, Badge, Field, Input, Select, Textarea, Modal, useToast,
   StatCard, ConfirmDialog, Tabs, Loading, EmptyState,
 } from '../components/ui.jsx';
+import ExcelIO from '../components/ExcelIO.jsx';
 import {
   fmtNum, fmtDate, fmtDateTime, expiryState, stockState, MOVEMENT_TYPES, DOSAGE_FORMS, UNITS, cn,
 } from '../lib/format.js';
@@ -91,12 +92,17 @@ export default function Inventory() {
     <div>
       <PageHeader
         title="إدارة المخزون" subtitle="الأصناف والدفعات وتواريخ الصلاحية وحركات المخزون" icon={Boxes}
-        actions={can('pharmacist') && (
+        actions={(
           <>
-            <button className="btn-outline" onClick={() => setAdjust({ product_id: '', type: 'adjust_in', qty: 1, note: '' })}>
-              <SlidersHorizontal className="h-4 w-4" /> تسوية مخزنية
-            </button>
-            <button className="btn-primary" onClick={() => setForm(emptyProduct())}><Plus className="h-4 w-4" /> صنف جديد</button>
+            <ExcelIO entity="products" filters={filters} canImport={can('pharmacist')} onDone={load} />
+            {can('pharmacist') && (
+              <>
+                <button className="btn-outline" onClick={() => setAdjust({ product_id: '', type: 'adjust_in', qty: 1, note: '' })}>
+                  <SlidersHorizontal className="h-4 w-4" /> تسوية مخزنية
+                </button>
+                <button className="btn-primary" onClick={() => setForm(emptyProduct())}><Plus className="h-4 w-4" /> صنف جديد</button>
+              </>
+            )}
           </>
         )}
       />

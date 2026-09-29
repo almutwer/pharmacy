@@ -31,6 +31,7 @@
     "cors": "^2.8.5",
     "dayjs": "^1.11.13",
     "dotenv": "^16.4.7",
+    "exceljs": "^4.4.0",
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.2",
     "morgan": "^1.10.0",
@@ -66,11 +67,15 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         },
         {
           "target": "portable",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "icon": "electron/icon.ico",
@@ -84,7 +89,10 @@
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
       "shortcutName": "نظام إدارة الصيدليات",
-      "installerLanguages": ["ar-SA", "en-US"],
+      "installerLanguages": [
+        "ar-SA",
+        "en-US"
+      ],
       "language": "1025",
       "deleteAppDataOnUninstall": false
     },
@@ -92,12 +100,16 @@
       "artifactName": "PharmacySystem-${version}-portable.exe"
     },
     "linux": {
-      "target": ["AppImage"],
+      "target": [
+        "AppImage"
+      ],
       "icon": "electron/icon.png",
       "category": "Office"
     },
     "mac": {
-      "target": ["dmg"],
+      "target": [
+        "dmg"
+      ],
       "icon": "electron/icon.png",
       "category": "public.app-category.business"
     }

@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
   Settings as SettingsIcon, Save, Users, Plus, Pencil, Trash2, Activity, Download,
-  Building2, KeyRound, ShieldCheck,
+  Building2, KeyRound, ShieldCheck, DatabaseBackup,
 } from 'lucide-react';
 import api, { getToken } from '../api.js';
 import { useApp } from '../context/AppContext.jsx';
@@ -9,6 +9,7 @@ import {
   PageHeader, Card, CardHeader, Tabs, Field, Input, Select, Table, Badge, Modal,
   useToast, ConfirmDialog, Loading, EmptyState,
 } from '../components/ui.jsx';
+import Maintenance from './settings/Maintenance.jsx';
 import { fmtDateTime, ROLE_LABELS } from '../lib/format.js';
 
 export default function Settings() {
@@ -24,12 +25,14 @@ export default function Settings() {
           { value: 'general', label: 'بيانات الصيدلية', icon: Building2 },
           ...(can('admin') ? [{ value: 'users', label: 'المستخدمون', icon: Users }] : []),
           { value: 'security', label: 'الحساب والأمان', icon: KeyRound },
+          ...(can('manager') ? [{ value: 'maintenance', label: 'النسخ والصيانة', icon: DatabaseBackup }] : []),
           { value: 'activity', label: 'سجل النشاط', icon: Activity },
         ]}
       />
       {tab === 'general' && <GeneralSettings />}
       {tab === 'users' && <UsersSettings />}
       {tab === 'security' && <SecuritySettings />}
+      {tab === 'maintenance' && can('manager') && <Maintenance />}
       {tab === 'activity' && <ActivityLog />}
     </div>
   );
@@ -102,9 +105,13 @@ function GeneralSettings() {
 
         <Card>
           <CardHeader title="النسخ الاحتياطي" subtitle="تنزيل نسخة كاملة من البيانات بصيغة JSON" icon={Download} />
-          <div className="flex items-center justify-between p-5">
-            <p className="text-sm text-ink-500">يُنصح بأخذ نسخة احتياطية دورية وحفظها خارج الجهاز.</p>
-            <button className="btn-outline" onClick={backup}><Download className="h-4 w-4" /> تنزيل نسخة</button>
+          <div className="flex items-center justify-between gap-3 p-5">
+            <p className="text-sm text-ink-500">
+              يُنصح بأخذ نسخة احتياطية دورية وحفظها خارج الجهاز.
+              <br />
+              <span className="text-xs text-ink-400">للاستعادة أو مسح البيانات افتح تبويب «النسخ والصيانة».</span>
+            </p>
+            <button className="btn-outline shrink-0" onClick={backup}><Download className="h-4 w-4" /> تنزيل نسخة</button>
           </div>
         </Card>
       </div>
