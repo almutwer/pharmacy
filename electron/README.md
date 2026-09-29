@@ -13,8 +13,9 @@
 | `network.html` | نافذة إعدادات الشبكة المحلية (اختيار الوضع، المنفذ، اختبار الاتصال) |
 | `preload.cjs` | جسر IPC آمن بين نافذة الشبكة والعملية الرئيسية (contextIsolation مفعّل) |
 | `splash.html` | شاشة الانتظار أثناء تهيئة قاعدة البيانات |
-| `icon.ico` | أيقونة التطبيق لويندوز (8 أحجام: 16 → 256 بكسل) |
-| `icon.png` | أيقونة بدقة 1024×1024 (لينكس / ماك) |
+| `icon.ico` | أيقونة التطبيق لويندوز — هاون ومدقة (8 أحجام: 16 → 256 بكسل) |
+| `icon.png` | نفس الأيقونة بدقة 512×512 (لينكس / ماك) |
+| `icon-alt-capsule.png` | أيقونة بديلة (كبسولة دواء) — لاستخدامها: انسخها فوق `icon.png` ثم حوّلها إلى `icon.ico` |
 
 ---
 
@@ -112,7 +113,7 @@ npm run app:build
 | ماذا تريد تغييره؟ | أين |
 |---|---|
 | اسم البرنامج واسم الاختصار | `package.json` ← `build.productName` و `build.nsis.shortcutName` |
-| الأيقونة | استبدل `electron/icon.ico` (يفضّل 256×256 داخل ملف متعدد الأحجام) |
+| الأيقونة | استبدل `electron/icon.ico`. لتوليده من صورة PNG: `magick icon.png -define icon:auto-resize=256,128,96,64,48,32,24,16 icon.ico` |
 | رقم الإصدار | `package.json` ← `version` |
 | معرّف التطبيق | `package.json` ← `build.appId` |
 | حجم النافذة الافتراضي | `electron/main.cjs` ← `loadWindowState()` |
