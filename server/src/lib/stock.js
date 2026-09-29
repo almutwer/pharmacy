@@ -67,11 +67,12 @@ export function allocateFEFO(productId, qty, preferredBatchId = null) {
 
   if (remaining > 0) {
     const allowNegative = getSetting('allow_negative_stock', '0') === '1';
-    const product = db.get('SELECT name FROM products WHERE id = ?', [productId]);
+    const product = db.get('SELECT name, unit FROM products WHERE id = ?', [productId]);
     if (!allowNegative) {
       throw new HttpError(
         400,
-        `الكمية غير كافية في المخزون للصنف: ${product?.name || productId} (النقص: ${remaining})`,
+        `الكمية غير كافية في المخزون للصنف: ${product?.name || productId} `
+        + `(النقص: ${round(remaining, 3)} ${product?.unit || 'وحدة'})`,
       );
     }
     // سماح بالسالب: نخصمها من آخر دفعة أو ننشئ دفعة مفتوحة

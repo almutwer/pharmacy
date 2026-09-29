@@ -12,11 +12,13 @@ import {
 } from '../components/ui.jsx';
 import ExcelIO from '../components/ExcelIO.jsx';
 import {
-  fmtNum, fmtDate, fmtDateTime, expiryState, stockState, MOVEMENT_TYPES, DOSAGE_FORMS, UNITS, cn,
+  fmtNum, fmtDate, fmtDateTime, expiryState, stockState, MOVEMENT_TYPES, DOSAGE_FORMS, UNITS,
+  SUB_UNITS, canSellSub, subUnitPrice, fmtStock, cn,
 } from '../lib/format.js';
 
 const emptyProduct = () => ({
   name: '', generic_name: '', form: '', strength: '', unit: 'علبة', category: '', manufacturer: '',
+  sub_unit: '', units_per_pack: 1, sub_unit_price: 0, allow_sub_unit: 0,
   barcode: '', purchase_price: 0, sale_price: 0, reorder_level: 10, location: '',
   requires_prescription: 0, notes: '', active: 1, opening_qty: 0, opening_expiry: '',
 });
@@ -170,7 +172,14 @@ export default function Inventory() {
                   </td>
                   <td className="text-ink-500">{p.category || '—'}</td>
                   <td className="text-ink-500">{p.form || '—'}</td>
-                  <td className="num font-extrabold">{fmtNum(p.stock_qty, 0)} <span className="text-[11px] font-normal text-ink-400">{p.unit}</span></td>
+                  <td className="num font-extrabold">
+                    {fmtStock(p.stock_qty, p)}
+                    {canSellSub(p) && (
+                      <span className="block text-[10px] font-normal text-brand-600">
+                        تجزئة: {fmtNum(subUnitPrice(p))} / {p.sub_unit}
+                      </span>
+                    )}
+                  </td>
                   <td><Badge className={st.cls}>{st.label}</Badge></td>
                   <td>{p.nearest_expiry ? <Badge className={exp.cls}>{fmtDate(p.nearest_expiry)}</Badge> : <span className="text-ink-300">—</span>}</td>
                   <td className="num">{fmtNum(p.purchase_price)}</td>
@@ -230,6 +239,45 @@ export default function Inventory() {
             <Field label="سعر البيع"><Input type="number" step="0.01" value={form.sale_price} onChange={(e) => setForm({ ...form, sale_price: e.target.value })} /></Field>
             <Field label="حد إعادة الطلب"><Input type="number" value={form.reorder_level} onChange={(e) => setForm({ ...form, reorder_level: e.target.value })} /></Field>
             <Field label="موقع الرف"><Input value={form.location || ''} onChange={(e) => setForm({ ...form, location: e.target.value })} /></Field>
+            <Field label="البيع بالتجزئة" className="sm:col-span-2" hint="لبيع جزء من العبوة (شريط من علبة، قرص من شريط…)">
+              <Select
+                value={form.allow_sub_unit || 0}
+                onChange={(e) => setForm({ ...form, allow_sub_unit: Number(e.target.value), sub_unit: form.sub_unit || 'شريط' })}
+              >
+                <option value={0}>غير مفعّل — البيع بالعبوة الكاملة فقط</option>
+                <option value={1}>مفعّل — يمكن بيع وحدة أصغر من العبوة</option>
+              </Select>
+            </Field>
+
+            {Number(form.allow_sub_unit) === 1 && (
+              <>
+                <Field label="اسم الوحدة الصغرى" required>
+                  <Select value={form.sub_unit || ''} onChange={(e) => setForm({ ...form, sub_unit: e.target.value })}>
+                    <option value="">—</option>
+                    {SUB_UNITS.map((u) => <option key={u} value={u}>{u}</option>)}
+                  </Select>
+                </Field>
+                <Field label={`عدد الـ${form.sub_unit || 'وحدات'} في ${form.unit || 'العبوة'}`} required>
+                  <Input
+                    type="number" min="1" step="1" value={form.units_per_pack}
+                    onChange={(e) => setForm({ ...form, units_per_pack: Number(e.target.value) || 1 })}
+                  />
+                </Field>
+                <Field
+                  label={`سعر بيع الـ${form.sub_unit || 'وحدة'}`}
+                  className="sm:col-span-2"
+                  hint={`اتركه صفراً ليُحسب تلقائياً = ${fmtNum(
+                    (Number(form.sale_price) || 0) / (Number(form.units_per_pack) || 1),
+                  )} ${currency}. عادة يكون سعر التجزئة أعلى.`}
+                >
+                  <Input
+                    type="number" step="0.01" value={form.sub_unit_price}
+                    onChange={(e) => setForm({ ...form, sub_unit_price: Number(e.target.value) || 0 })}
+                  />
+                </Field>
+              </>
+            )}
+
             <Field label="يصرف بوصفة؟">
               <Select value={form.requires_prescription} onChange={(e) => setForm({ ...form, requires_prescription: Number(e.target.value) })}>
                 <option value={0}>لا</option><option value={1}>نعم</option>
@@ -266,7 +314,13 @@ export default function Inventory() {
         {!detail ? <Loading /> : (
           <div className="space-y-4">
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-              <Info label="الرصيد" value={`${fmtNum(detail.data.stock_qty, 0)} ${detail.data.unit}`} />
+              <Info label="الرصيد" value={fmtStock(detail.data.stock_qty, detail.data)} />
+              {canSellSub(detail.data) && (
+                <Info
+                  label="البيع بالتجزئة"
+                  value={`${fmtNum(subUnitPrice(detail.data))} ${currency} / ${detail.data.sub_unit} — العبوة ${fmtNum(detail.data.units_per_pack, 0)} ${detail.data.sub_unit}`}
+                />
+              )}
               <Info label="قيمة المخزون" value={`${fmtNum(detail.data.stock_cost_value)} ${currency}`} />
               <Info label="سعر البيع" value={`${fmtNum(detail.data.sale_price)} ${currency}`} />
               <Info label="الموقع" value={detail.data.location || '—'} />

@@ -1,7 +1,7 @@
 /** فاتورة قابلة للطباعة */
 import React from 'react';
 import { useApp } from '../context/AppContext.jsx';
-import { fmtNum, fmtDateTime, PAYMENT_METHODS } from '../lib/format.js';
+import { fmtNum, fmtDateTime, PAYMENT_METHODS, fmtSoldQty } from '../lib/format.js';
 
 export default function Receipt({ sale, items, change }) {
   const { settings, currency } = useApp();
@@ -36,9 +36,12 @@ export default function Receipt({ sale, items, change }) {
         <tbody>
           {items.map((i) => (
             <tr key={i.id} className="border-b border-dashed border-ink-100">
-              <td className="py-1.5">{i.name || i.product_name}</td>
-              <td className="num py-1.5 text-center">{fmtNum(i.qty, 0)}</td>
-              <td className="num py-1.5 text-center">{fmtNum(i.unit_price)}</td>
+              <td className="py-1.5">
+                {i.name || i.product_name}
+                {i.unit_mode === 'sub' && <span className="text-[9px] text-ink-500"> (تجزئة)</span>}
+              </td>
+              <td className="num py-1.5 text-center">{fmtSoldQty(i)}</td>
+              <td className="num py-1.5 text-center">{fmtNum(i.unit_price_display ?? i.unit_price)}</td>
               <td className="num py-1.5 text-left font-bold">{fmtNum(i.total)}</td>
             </tr>
           ))}

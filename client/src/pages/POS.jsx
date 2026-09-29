@@ -6,7 +6,10 @@ import {
 import api from '../api.js';
 import { useApp } from '../context/AppContext.jsx';
 import { useToast, Card, Field, Input, Select, Modal, Badge, Spinner, EmptyState } from '../components/ui.jsx';
-import { fmtNum, expiryState, PAYMENT_METHODS, cn } from '../lib/format.js';
+import {
+  fmtNum, fmtInt, expiryState, PAYMENT_METHODS, cn,
+  canSellSub, subUnitPrice, fmtStock, stockInSubUnits,
+} from '../lib/format.js';
 import Receipt from '../components/Receipt.jsx';
 
 export default function POS() {
@@ -45,20 +48,36 @@ export default function POS() {
     return () => clearTimeout(t);
   }, [query]);
 
-  const addToCart = (product) => {
+  /** الحد الأقصى المتاح لبند حسب وحدة بيعه */
+  const maxQty = (line) => (line.unit_mode === 'sub'
+    ? stockInSubUnits(line.stock_qty, line)
+    : line.stock_qty);
+
+  /** مفتاح فريد للبند: نفس الصنف بوحدتين مختلفتين = بندان منفصلان */
+  const lineKey = (productId, mode) => `${productId}:${mode}`;
+
+  const addToCart = (product, mode = 'pack') => {
     if (product.stock_qty <= 0) { toast.error(`الصنف «${product.name}» غير متوفر في المخزون`); return; }
+    const key = lineKey(product.id, mode);
     setCart((prev) => {
-      const found = prev.find((i) => i.product_id === product.id);
+      const found = prev.find((i) => i.key === key);
       if (found) {
-        if (found.qty + 1 > product.stock_qty) { toast.error('الكمية المطلوبة تتجاوز المتاح'); return prev; }
-        return prev.map((i) => (i.product_id === product.id ? { ...i, qty: i.qty + 1 } : i));
+        if (found.qty + 1 > maxQty(found)) { toast.error('الكمية المطلوبة تتجاوز المتاح'); return prev; }
+        return prev.map((i) => (i.key === key ? { ...i, qty: i.qty + 1 } : i));
       }
       return [...prev, {
+        key,
         product_id: product.id,
         name: product.name,
         unit: product.unit,
+        sub_unit: product.sub_unit,
+        units_per_pack: Number(product.units_per_pack) || 1,
+        sub_unit_price: product.sub_unit_price,
+        allow_sub_unit: product.allow_sub_unit,
+        sale_price: product.sale_price,
+        unit_mode: mode,
         qty: 1,
-        unit_price: product.sale_price,
+        unit_price: mode === 'sub' ? subUnitPrice(product) : product.sale_price,
         discount: 0,
         stock_qty: product.stock_qty,
         nearest_expiry: product.nearest_expiry,
@@ -69,8 +88,29 @@ export default function POS() {
     searchRef.current?.focus();
   };
 
-  const updateLine = (id, patch) => setCart((prev) => prev.map((i) => (i.product_id === id ? { ...i, ...patch } : i)));
-  const removeLine = (id) => setCart((prev) => prev.filter((i) => i.product_id !== id));
+  const updateLine = (key, patch) => setCart((prev) => prev.map((i) => (i.key === key ? { ...i, ...patch } : i)));
+  const removeLine = (key) => setCart((prev) => prev.filter((i) => i.key !== key));
+
+  /** تبديل وحدة البيع لبند في السلة (علبة ⇄ شريط) */
+  const switchUnit = (line, mode) => {
+    if (line.unit_mode === mode) return;
+    const newKey = lineKey(line.product_id, mode);
+    setCart((prev) => {
+      if (prev.some((i) => i.key === newKey)) {
+        toast.error('هذا الصنف موجود بالفعل في السلة بهذه الوحدة');
+        return prev;
+      }
+      return prev.map((i) => (i.key === line.key
+        ? {
+          ...i,
+          key: newKey,
+          unit_mode: mode,
+          qty: 1,
+          unit_price: mode === 'sub' ? subUnitPrice(i) : Number(i.sale_price) || 0,
+        }
+        : i));
+    });
+  };
 
   const totals = useMemo(() => {
     const subtotal = cart.reduce((s, i) => s + i.qty * i.unit_price - (Number(i.discount) || 0), 0);
@@ -98,6 +138,7 @@ export default function POS() {
           qty: i.qty,
           unit_price: i.unit_price,
           discount: Number(i.discount) || 0,
+          unit_mode: i.unit_mode || 'pack',
         })),
       });
       const full = await api.get(`/sales/${res.id}`);
@@ -151,20 +192,30 @@ export default function POS() {
               )}
               {results.map((p) => {
                 const exp = expiryState(p.nearest_expiry);
+                const retail = canSellSub(p);
                 return (
-                  <button
+                  <div
                     key={p.id}
-                    onClick={() => addToCart(p)}
                     className="flex w-full items-center gap-3 rounded-xl border border-ink-100 p-3 text-right transition hover:border-brand-400 hover:bg-brand-50/50"
                   >
-                    <div className="min-w-0 flex-1">
+                    <button className="min-w-0 flex-1 text-right" onClick={() => addToCart(p, 'pack')}>
                       <p className="truncate font-extrabold text-ink-900">{p.name} <span className="text-xs font-bold text-ink-400">{p.strength || ''}</span></p>
-                      <p className="truncate text-[11px] text-ink-400">{p.generic_name || '—'} · {p.form || ''} · {p.manufacturer || ''}</p>
-                    </div>
+                      <p className="truncate text-[11px] text-ink-400">
+                        {p.generic_name || '—'} · {p.form || ''}
+                        {retail && <span className="font-bold text-brand-600"> · العبوة {fmtInt(p.units_per_pack)} {p.sub_unit}</span>}
+                      </p>
+                    </button>
                     {p.nearest_expiry && exp.key !== 'ok' && <Badge className={exp.cls}>{exp.label}</Badge>}
-                    <Badge tone={p.stock_qty > 0 ? 'green' : 'red'}>{fmtNum(p.stock_qty, 0)} {p.unit}</Badge>
-                    <span className="num shrink-0 font-extrabold text-brand-700">{fmtNum(p.sale_price)} {currency}</span>
-                  </button>
+                    <Badge tone={p.stock_qty > 0 ? 'green' : 'red'}>{fmtStock(p.stock_qty, p)}</Badge>
+                    <button className="btn-outline btn-sm shrink-0" onClick={() => addToCart(p, 'pack')}>
+                      {p.unit} · {fmtNum(p.sale_price)}
+                    </button>
+                    {retail && (
+                      <button className="btn-outline btn-sm shrink-0 border-brand-300 text-brand-700" onClick={() => addToCart(p, 'sub')}>
+                        {p.sub_unit} · {fmtNum(subUnitPrice(p))}
+                      </button>
+                    )}
+                  </div>
                 );
               })}
             </div>
@@ -189,50 +240,80 @@ export default function POS() {
             <EmptyState title="السلة فارغة" hint="ابحث عن الدواء وأضفه للسلة لبدء الفاتورة" icon={ShoppingCart} />
           ) : (
             <div className="divide-y divide-ink-50">
-              {cart.map((item) => (
-                <div key={item.product_id} className="flex flex-wrap items-center gap-3 px-4 py-3">
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-extrabold text-ink-900">{item.name}</p>
-                    <p className="text-[11px] text-ink-400">
-                      المتاح: {fmtNum(item.stock_qty, 0)} {item.unit}
-                      {item.qty > item.stock_qty && <span className="mr-1 font-bold text-rose-600"><AlertTriangle className="inline h-3 w-3" /> تجاوزت المتاح</span>}
-                    </p>
-                  </div>
+              {cart.map((item) => {
+                const retail = canSellSub(item);
+                const available = maxQty(item);
+                const unitName = item.unit_mode === 'sub' ? item.sub_unit : item.unit;
+                return (
+                  <div key={item.key} className="flex flex-wrap items-center gap-3 px-4 py-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-extrabold text-ink-900">
+                        {item.name}
+                        {item.unit_mode === 'sub' && <Badge tone="violet" className="mr-2">تجزئة</Badge>}
+                      </p>
+                      <p className="text-[11px] text-ink-400">
+                        المتاح: {fmtStock(item.stock_qty, item)}
+                        {item.qty > available && <span className="mr-1 font-bold text-rose-600"><AlertTriangle className="inline h-3 w-3" /> تجاوزت المتاح</span>}
+                      </p>
+                    </div>
 
-                  <div className="flex items-center gap-1 rounded-xl border border-ink-200 p-1">
-                    <button className="rounded-lg p-1.5 text-ink-500 hover:bg-ink-100" onClick={() => updateLine(item.product_id, { qty: Math.max(1, item.qty - 1) })}>
-                      <Minus className="h-4 w-4" />
-                    </button>
+                    {retail && (
+                      <div className="flex overflow-hidden rounded-xl border border-ink-200 text-[11px] font-extrabold">
+                        <button
+                          className={cn('px-2.5 py-1.5 transition', item.unit_mode === 'pack' ? 'bg-brand-600 text-white' : 'text-ink-500 hover:bg-ink-50')}
+                          onClick={() => switchUnit(item, 'pack')}
+                        >
+                          {item.unit}
+                        </button>
+                        <button
+                          className={cn('px-2.5 py-1.5 transition', item.unit_mode === 'sub' ? 'bg-brand-600 text-white' : 'text-ink-500 hover:bg-ink-50')}
+                          onClick={() => switchUnit(item, 'sub')}
+                        >
+                          {item.sub_unit}
+                        </button>
+                      </div>
+                    )}
+
+                    <div className="flex items-center gap-1 rounded-xl border border-ink-200 p-1">
+                      <button className="rounded-lg p-1.5 text-ink-500 hover:bg-ink-100" onClick={() => updateLine(item.key, { qty: Math.max(1, item.qty - 1) })}>
+                        <Minus className="h-4 w-4" />
+                      </button>
+                      <input
+                        className="num w-14 border-0 text-center text-sm font-extrabold outline-none"
+                        value={item.qty}
+                        title={`الكمية بوحدة: ${unitName}`}
+                        onChange={(e) => {
+                          const raw = Number(e.target.value) || 0;
+                          const qty = item.unit_mode === 'sub' ? Math.max(1, Math.round(raw)) : Math.max(0.01, raw);
+                          updateLine(item.key, { qty });
+                        }}
+                      />
+                      <button className="rounded-lg p-1.5 text-ink-500 hover:bg-ink-100" onClick={() => updateLine(item.key, { qty: item.qty + 1 })}>
+                        <Plus className="h-4 w-4" />
+                      </button>
+                    </div>
+
                     <input
-                      className="num w-14 border-0 text-center text-sm font-extrabold outline-none"
-                      value={item.qty}
-                      onChange={(e) => updateLine(item.product_id, { qty: Math.max(0.01, Number(e.target.value) || 0) })}
+                      className="input num w-24 py-1.5 text-center text-sm"
+                      value={item.unit_price}
+                      onChange={(e) => updateLine(item.key, { unit_price: Number(e.target.value) || 0 })}
+                      title={`سعر ${unitName}`}
                     />
-                    <button className="rounded-lg p-1.5 text-ink-500 hover:bg-ink-100" onClick={() => updateLine(item.product_id, { qty: item.qty + 1 })}>
-                      <Plus className="h-4 w-4" />
+                    <input
+                      className="input num w-20 py-1.5 text-center text-sm"
+                      value={item.discount}
+                      onChange={(e) => updateLine(item.key, { discount: Number(e.target.value) || 0 })}
+                      title="خصم البند"
+                    />
+                    <span className="num w-24 text-left font-extrabold text-ink-900">
+                      {fmtNum(item.qty * item.unit_price - (Number(item.discount) || 0))}
+                    </span>
+                    <button className="rounded-lg p-2 text-rose-500 hover:bg-rose-50" onClick={() => removeLine(item.key)}>
+                      <Trash2 className="h-4 w-4" />
                     </button>
                   </div>
-
-                  <input
-                    className="input num w-24 py-1.5 text-center text-sm"
-                    value={item.unit_price}
-                    onChange={(e) => updateLine(item.product_id, { unit_price: Number(e.target.value) || 0 })}
-                    title="سعر الوحدة"
-                  />
-                  <input
-                    className="input num w-20 py-1.5 text-center text-sm"
-                    value={item.discount}
-                    onChange={(e) => updateLine(item.product_id, { discount: Number(e.target.value) || 0 })}
-                    title="خصم البند"
-                  />
-                  <span className="num w-24 text-left font-extrabold text-ink-900">
-                    {fmtNum(item.qty * item.unit_price - (Number(item.discount) || 0))}
-                  </span>
-                  <button className="rounded-lg p-2 text-rose-500 hover:bg-rose-50" onClick={() => removeLine(item.product_id)}>
-                    <Trash2 className="h-4 w-4" />
-                  </button>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </Card>

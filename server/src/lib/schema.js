@@ -28,6 +28,26 @@ export const DEFAULT_SETTINGS = {
   allow_negative_stock: '0',
 };
 
+/** إضافة عمود جديد إلى جدول قائم (ترقية قواعد البيانات السابقة) */
+function addColumnIfMissing(table, column, definition) {
+  const exists = db.all(`PRAGMA table_info(${table})`).some((c) => c.name === column);
+  if (!exists) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+}
+
+/** ترقيات تُطبَّق على قواعد البيانات المنشأة بإصدارات أقدم */
+function upgrade() {
+  addColumnIfMissing('products', 'sub_unit', 'TEXT');
+  addColumnIfMissing('products', 'units_per_pack', 'REAL NOT NULL DEFAULT 1');
+  addColumnIfMissing('products', 'sub_unit_price', 'REAL NOT NULL DEFAULT 0');
+  addColumnIfMissing('products', 'allow_sub_unit', 'INTEGER NOT NULL DEFAULT 0');
+
+  addColumnIfMissing('sale_items', 'unit_mode', "TEXT NOT NULL DEFAULT 'pack'");
+  addColumnIfMissing('sale_items', 'unit_label', 'TEXT');
+  addColumnIfMissing('sale_items', 'units_per_pack', 'REAL NOT NULL DEFAULT 1');
+  addColumnIfMissing('sale_items', 'qty_units', 'REAL');
+  addColumnIfMissing('sale_items', 'unit_price_display', 'REAL');
+}
+
 export function migrate({ seedCatalog = true } = {}) {
   db.exec(`
   -- ===== المستخدمون والصلاحيات =====
@@ -82,7 +102,11 @@ export function migrate({ seedCatalog = true } = {}) {
     generic_name   TEXT,
     form           TEXT,
     strength       TEXT,
-    unit           TEXT DEFAULT 'علبة',
+    unit           TEXT DEFAULT 'علبة',      -- الوحدة الكبرى (علبة، زجاجة ...)
+    sub_unit       TEXT,                     -- الوحدة الصغرى (شريط، قرص، مل ...)
+    units_per_pack REAL NOT NULL DEFAULT 1,  -- عدد الوحدات الصغرى داخل الوحدة الكبرى
+    sub_unit_price REAL NOT NULL DEFAULT 0,  -- سعر الوحدة الصغرى (0 = يُحسب تلقائياً)
+    allow_sub_unit INTEGER NOT NULL DEFAULT 0, -- السماح بالبيع بالتجزئة
     category       TEXT,
     manufacturer   TEXT,
     barcode        TEXT,
@@ -203,9 +227,14 @@ export function migrate({ seedCatalog = true } = {}) {
     product_id   INTEGER NOT NULL REFERENCES products(id),
     batch_id     INTEGER REFERENCES batches(id) ON DELETE SET NULL,
     product_name TEXT,
-    qty          REAL NOT NULL,
+    qty          REAL NOT NULL,              -- الكمية بالوحدة الكبرى (قد تكون كسرية عند البيع بالتجزئة)
     returned_qty REAL NOT NULL DEFAULT 0,
-    unit_price   REAL NOT NULL,
+    unit_mode    TEXT NOT NULL DEFAULT 'pack', -- pack | sub
+    unit_label   TEXT,                       -- اسم الوحدة المباعة وقت البيع
+    units_per_pack REAL NOT NULL DEFAULT 1,  -- معامل التحويل وقت البيع
+    qty_units    REAL,                       -- الكمية بوحدة البيع الفعلية (3 أشرطة مثلاً)
+    unit_price_display REAL,                 -- سعر وحدة البيع الفعلية
+    unit_price   REAL NOT NULL,              -- سعر الوحدة الكبرى المكافئ (qty × unit_price = total)
     unit_cost    REAL NOT NULL DEFAULT 0,
     discount     REAL NOT NULL DEFAULT 0,
     total        REAL NOT NULL
@@ -284,6 +313,8 @@ export function migrate({ seedCatalog = true } = {}) {
     created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
   );
   `);
+
+  upgrade();
 
   // الإعدادات الافتراضية
   for (const [key, value] of Object.entries(DEFAULT_SETTINGS)) {

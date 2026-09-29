@@ -32,6 +32,50 @@ export const DOSAGE_FORMS = [
 
 export const UNITS = ['علبة', 'شريط', 'زجاجة', 'أنبوب', 'قطعة', 'كيس', 'أمبولة', 'جهاز'];
 
+export const SUB_UNITS = ['شريط', 'قرص', 'كبسولة', 'مل', 'قطعة', 'أمبولة', 'كيس', 'تحميلة'];
+
+/* ==================== البيع بالتجزئة ==================== */
+
+/** هل الصنف مهيأ للبيع بالوحدة الصغرى؟ */
+export const canSellSub = (p) => !!(p && p.allow_sub_unit && Number(p.units_per_pack) > 1);
+
+/** سعر الوحدة الصغرى (المحدد يدوياً أو المحسوب من سعر العبوة) */
+export function subUnitPrice(p) {
+  if (!p) return 0;
+  const per = Number(p.units_per_pack) || 1;
+  const manual = Number(p.sub_unit_price) || 0;
+  if (manual > 0) return manual;
+  return per > 1 ? Math.round((Number(p.sale_price) || 0) / per * 100) / 100 : Number(p.sale_price) || 0;
+}
+
+/**
+ * عرض رصيد كسري بصيغة مفهومة: 8.4 علبة ← «8 علبة و4 شريط»
+ */
+export function fmtStock(qty, p) {
+  const n = Number(qty) || 0;
+  const unit = p?.unit || 'وحدة';
+  const per = Number(p?.units_per_pack) || 1;
+  if (per <= 1 || !p?.sub_unit) return `${fmtInt(Math.round(n * 1000) / 1000)} ${unit}`;
+
+  const totalSub = Math.round(n * per);
+  const packs = Math.floor(totalSub / per);
+  const rest = Math.round(totalSub - packs * per);
+  if (!rest) return `${fmtInt(packs)} ${unit}`;
+  if (!packs) return `${fmtInt(rest)} ${p.sub_unit}`;
+  return `${fmtInt(packs)} ${unit} و${fmtInt(rest)} ${p.sub_unit}`;
+}
+
+/** الرصيد محسوباً بالوحدة الصغرى */
+export const stockInSubUnits = (qty, p) => Math.round((Number(qty) || 0) * (Number(p?.units_per_pack) || 1));
+
+/** عرض كمية بند فاتورة حسب وحدة بيعه */
+export function fmtSoldQty(item) {
+  if (!item) return '';
+  const label = item.unit_label || '';
+  const qty = item.qty_units != null ? Number(item.qty_units) : Number(item.qty);
+  return `${fmtInt(Math.round(qty * 1000) / 1000)}${label ? ` ${label}` : ''}`;
+}
+
 export const fmtNum = (n, digits = 2) =>
   Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: digits, maximumFractionDigits: digits });
 

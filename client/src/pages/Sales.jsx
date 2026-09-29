@@ -9,7 +9,7 @@ import {
   PageHeader, Card, Table, Pagination, Badge, Field, Input, Select, Modal, useToast,
   StatCard, ConfirmDialog, Tabs, EmptyState, Loading,
 } from '../components/ui.jsx';
-import { fmtNum, fmtDate, fmtDateTime, PAYMENT_METHODS, todayStr, monthStartStr } from '../lib/format.js';
+import { fmtNum, fmtDate, fmtDateTime, PAYMENT_METHODS, todayStr, monthStartStr, fmtSoldQty } from '../lib/format.js';
 import ReceiptView from '../components/Receipt.jsx';
 
 export default function Sales() {
@@ -47,7 +47,7 @@ export default function Sales() {
 
   const submitReturn = async () => {
     const items = returnModal.items.filter((i) => Number(i.returnQty) > 0)
-      .map((i) => ({ sale_item_id: i.id, qty: Number(i.returnQty) }));
+      .map((i) => ({ sale_item_id: i.id, qty_units: Number(i.returnQty) }));
     if (!items.length) { toast.error('حدد الكميات المرتجعة'); return; }
     try {
       await api.post(`/sales/${returnModal.sale.id}/return`, { items, reason: returnModal.reason });
@@ -212,11 +212,18 @@ export default function Sales() {
                   <tbody>
                     {detail.items.map((i) => (
                       <tr key={i.id}>
-                        <td className="font-bold">{i.name}</td>
+                        <td className="font-bold">
+                          {i.name}
+                          {i.unit_mode === 'sub' && <Badge tone="violet" className="mr-1">تجزئة</Badge>}
+                        </td>
                         <td className="text-xs text-ink-400">{i.batch_no || '—'}{i.expiry_date ? ` · ${fmtDate(i.expiry_date)}` : ''}</td>
-                        <td className="num">{fmtNum(i.qty, 0)}</td>
-                        <td className="num text-rose-600">{i.returned_qty ? fmtNum(i.returned_qty, 0) : '—'}</td>
-                        <td className="num">{fmtNum(i.unit_price)}</td>
+                        <td className="num">{fmtSoldQty(i)}</td>
+                        <td className="num text-rose-600">
+                          {i.returned_qty
+                            ? fmtSoldQty({ ...i, qty_units: i.returned_qty * (Number(i.units_per_pack) || 1), qty: i.returned_qty })
+                            : '—'}
+                        </td>
+                        <td className="num">{fmtNum(i.unit_price_display ?? i.unit_price)}</td>
                         <td className="num font-extrabold">{fmtNum(i.total)}</td>
                       </tr>
                     ))}
@@ -253,13 +260,22 @@ export default function Sales() {
                 <thead><tr><th>الصنف</th><th>المباع</th><th>المرتجع سابقاً</th><th>المتاح للإرجاع</th><th>كمية الإرجاع</th></tr></thead>
                 <tbody>
                   {returnModal.items.map((i, idx) => {
-                    const remaining = +(i.qty - i.returned_qty).toFixed(3);
+                    const per = Number(i.units_per_pack) || 1;
+                    const isSub = i.unit_mode === 'sub' && per > 1;
+                    const label = i.unit_label || '';
+                    const toUnits = (packQty) => +(packQty * (isSub ? per : 1)).toFixed(3);
+                    const soldUnits = i.qty_units != null ? Number(i.qty_units) : toUnits(i.qty);
+                    const returnedUnits = toUnits(i.returned_qty);
+                    const remaining = +(soldUnits - returnedUnits).toFixed(3);
                     return (
                       <tr key={i.id}>
-                        <td className="font-bold">{i.name}</td>
-                        <td className="num">{fmtNum(i.qty, 0)}</td>
-                        <td className="num">{fmtNum(i.returned_qty, 0)}</td>
-                        <td className="num font-bold text-brand-700">{fmtNum(remaining, 0)}</td>
+                        <td className="font-bold">
+                          {i.name}
+                          {isSub && <Badge tone="violet" className="mr-1">تجزئة</Badge>}
+                        </td>
+                        <td className="num">{fmtNum(soldUnits, 0)} <span className="text-[10px] text-ink-400">{label}</span></td>
+                        <td className="num">{fmtNum(returnedUnits, 0)}</td>
+                        <td className="num font-bold text-brand-700">{fmtNum(remaining, 0)} <span className="text-[10px] text-ink-400">{label}</span></td>
                         <td>
                           <Input
                             type="number" min="0" max={remaining} step="1" className="num w-24 py-1.5 text-center"

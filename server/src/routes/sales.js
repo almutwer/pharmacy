@@ -19,7 +19,50 @@ const itemSchema = z.object({
   qty: z.coerce.number().positive('الكمية مطلوبة'),
   unit_price: z.coerce.number().min(0),
   discount: z.coerce.number().min(0).default(0),
+  /** وحدة البيع: pack = الوحدة الكبرى (علبة)، sub = الوحدة الصغرى (شريط/قرص) */
+  unit_mode: z.enum(['pack', 'sub']).default('pack'),
 });
+
+/**
+ * تجهيز بند البيع حسب وحدة البيع المختارة
+ * يعيد الكمية بالوحدة الكبرى (للمخزون) مع بيانات العرض والطباعة
+ */
+function resolveUnit(product, item) {
+  const perPack = Number(product.units_per_pack) || 1;
+
+  if (item.unit_mode !== 'sub') {
+    return {
+      mode: 'pack',
+      label: product.unit || 'وحدة',
+      perPack: 1,
+      qtyUnits: round(item.qty, 3),
+      packQty: round(item.qty, 4),
+      priceDisplay: round(item.unit_price),
+      pricePack: round(item.unit_price),
+    };
+  }
+
+  if (!product.allow_sub_unit) {
+    throw new HttpError(400, `الصنف «${product.name}» غير مفعّل للبيع بالتجزئة`);
+  }
+  if (perPack <= 1) {
+    throw new HttpError(400, `حدد عدد الوحدات داخل ${product.unit || 'العبوة'} للصنف «${product.name}» قبل البيع بالتجزئة`);
+  }
+  if (!Number.isInteger(item.qty)) {
+    throw new HttpError(400, `كمية ${product.sub_unit || 'الوحدة'} يجب أن تكون رقماً صحيحاً`);
+  }
+
+  return {
+    mode: 'sub',
+    label: product.sub_unit || 'وحدة',
+    perPack,
+    qtyUnits: item.qty,
+    packQty: round(item.qty / perPack, 4),
+    priceDisplay: round(item.unit_price),
+    // السعر المكافئ للوحدة الكبرى حتى تبقى المعادلة: الكمية × السعر = الإجمالي
+    pricePack: round(item.unit_price * perPack),
+  };
+}
 
 const saleSchema = z.object({
   customer_id: z.coerce.number().int().positive().optional().nullable(),
@@ -114,13 +157,14 @@ router.post(
         const product = db.get('SELECT * FROM products WHERE id = ?', [item.product_id]);
         if (!product) throw new HttpError(404, 'الصنف غير موجود');
 
-        const allocations = allocateFEFO(product.id, item.qty, item.batch_id || null);
-        const lineTotal = round(item.qty * item.unit_price - item.discount);
+        const unit = resolveUnit(product, item);
+        const allocations = allocateFEFO(product.id, unit.packQty, item.batch_id || null);
+        const lineTotal = round(unit.qtyUnits * unit.priceDisplay - item.discount);
         subtotal = round(subtotal + lineTotal);
 
         // توزيع البند على الدفعات المستخدمة
         for (const alloc of allocations) {
-          const ratio = alloc.qty / item.qty;
+          const ratio = alloc.qty / unit.packQty;
           const allocTotal = round(lineTotal * ratio);
           const allocCost = round(alloc.qty * alloc.costPrice);
           cogs = round(cogs + allocCost);
@@ -131,7 +175,12 @@ router.post(
             batch_id: alloc.batchId,
             product_name: product.name,
             qty: alloc.qty,
-            unit_price: item.unit_price,
+            unit_mode: unit.mode,
+            unit_label: unit.label,
+            units_per_pack: unit.perPack,
+            qty_units: round(unit.qtyUnits * ratio, 3),
+            unit_price_display: unit.priceDisplay,
+            unit_price: unit.pricePack,
             unit_cost: alloc.costPrice,
             discount: round(item.discount * ratio),
             total: allocTotal,
@@ -176,7 +225,12 @@ router.post(
         reason: z.string().optional().nullable(),
         items: z.array(z.object({
           sale_item_id: z.coerce.number().int().positive(),
-          qty: z.coerce.number().positive(),
+          /** الكمية بالوحدة الكبرى (تُستخدم إن لم تُرسل qty_units) */
+          qty: z.coerce.number().positive().optional(),
+          /** الكمية بوحدة البيع الفعلية (شريط/قرص) — الأولوية لها */
+          qty_units: z.coerce.number().positive().optional(),
+        }).refine((v) => v.qty !== undefined || v.qty_units !== undefined, {
+          message: 'حدد الكمية المرتجعة',
         })).min(1, 'حدد الأصناف المرتجعة'),
       }),
       req.body,
@@ -195,25 +249,45 @@ router.post(
       for (const r of data.items) {
         const item = db.get('SELECT * FROM sale_items WHERE id = ? AND sale_id = ?', [r.sale_item_id, saleId]);
         if (!item) throw new HttpError(404, 'بند الفاتورة غير موجود');
+
+        const perPack = Number(item.units_per_pack) || 1;
+        const isSub = item.unit_mode === 'sub' && perPack > 1;
+
+        // تحويل الكمية المرتجعة إلى الوحدة الكبرى
+        let qty;
+        if (r.qty_units !== undefined) {
+          if (isSub && !Number.isInteger(r.qty_units)) {
+            throw new HttpError(400, `كمية ${item.unit_label || 'الوحدة'} المرتجعة يجب أن تكون رقماً صحيحاً`);
+          }
+          qty = round(isSub ? r.qty_units / perPack : r.qty_units, 4);
+        } else {
+          qty = round(r.qty, 4);
+        }
+
         const remaining = round(item.qty - item.returned_qty, 3);
-        if (r.qty > remaining) throw new HttpError(400, `الكمية المرتجعة أكبر من المتبقي (${remaining})`);
+        if (qty > remaining + 0.0001) {
+          const remainingLabel = isSub
+            ? `${round(remaining * perPack, 3)} ${item.unit_label}`
+            : `${remaining} ${item.unit_label || ''}`.trim();
+          throw new HttpError(400, `الكمية المرتجعة أكبر من المتبقي (${remainingLabel})`);
+        }
 
         const unitNet = item.qty > 0 ? round(item.total / item.qty, 4) : item.unit_price;
-        const lineTotal = round(unitNet * r.qty);
-        const lineCost = round(item.unit_cost * r.qty);
+        const lineTotal = round(unitNet * qty);
+        const lineCost = round(item.unit_cost * qty);
         total = round(total + lineTotal);
         costTotal = round(costTotal + lineCost);
 
         db.insert('sale_return_items', {
           return_id: returnId, sale_item_id: item.id, product_id: item.product_id,
-          batch_id: item.batch_id, qty: r.qty, unit_price: item.unit_price,
+          batch_id: item.batch_id, qty, unit_price: item.unit_price,
           unit_cost: item.unit_cost, total: lineTotal,
         });
 
-        db.run('UPDATE sale_items SET returned_qty = ROUND(returned_qty + ?, 3) WHERE id = ?', [r.qty, item.id]);
-        if (item.batch_id) restoreBatch(item.batch_id, r.qty);
+        db.run('UPDATE sale_items SET returned_qty = ROUND(returned_qty + ?, 4) WHERE id = ?', [qty, item.id]);
+        if (item.batch_id) restoreBatch(item.batch_id, qty);
         recordMovement({
-          productId: item.product_id, batchId: item.batch_id, type: 'sale_return', qty: r.qty,
+          productId: item.product_id, batchId: item.batch_id, type: 'sale_return', qty,
           unitCost: item.unit_cost, refType: 'sale_return', refId: returnId,
           note: `مرتجع فاتورة ${sale.invoice_no}`, userId: req.user.id,
         });
