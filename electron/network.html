@@ -1,0 +1,242 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'" />
+    <title>إعدادات الشبكة</title>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      :root {
+        --brand: #0f766e; --brand-50: #f0fdfa; --brand-100: #ccfbf1;
+        --ink-900: #0f172a; --ink-700: #334155; --ink-500: #64748b; --ink-200: #e2e8f0; --ink-50: #f8fafc;
+      }
+      body {
+        font-family: 'Tajawal', 'Segoe UI', system-ui, sans-serif;
+        background: var(--ink-50); color: var(--ink-900); padding: 22px; line-height: 1.7;
+        user-select: none;
+      }
+      h1 { font-size: 20px; font-weight: 800; }
+      .sub { font-size: 12px; color: var(--ink-500); margin-bottom: 16px; }
+      .alert {
+        background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca;
+        padding: 10px 14px; border-radius: 12px; font-size: 12.5px; font-weight: 700; margin-bottom: 14px;
+      }
+      .cards { display: grid; gap: 10px; }
+      .card {
+        display: flex; gap: 12px; align-items: flex-start; cursor: pointer;
+        border: 2px solid var(--ink-200); background: #fff; border-radius: 16px; padding: 14px;
+        transition: .15s;
+      }
+      .card:hover { border-color: #94a3b8; }
+      .card.active { border-color: var(--brand); background: var(--brand-50); }
+      .card input { margin-top: 5px; accent-color: var(--brand); width: 16px; height: 16px; }
+      .card h3 { font-size: 14.5px; font-weight: 800; }
+      .card p { font-size: 12px; color: var(--ink-500); }
+      .badge {
+        display: inline-block; background: var(--brand-100); color: var(--brand);
+        font-size: 10px; font-weight: 800; border-radius: 999px; padding: 2px 8px; margin-inline-start: 6px;
+      }
+      .panel {
+        margin-top: 12px; border: 1px dashed var(--ink-200); border-radius: 14px;
+        padding: 14px; background: #fff;
+      }
+      label.field { display: block; font-size: 12px; font-weight: 800; margin-bottom: 6px; color: var(--ink-700); }
+      input[type="text"], input[type="number"] {
+        width: 100%; padding: 9px 12px; border: 1px solid var(--ink-200); border-radius: 10px;
+        font-family: inherit; font-size: 13px; background: #fff; user-select: text;
+      }
+      input:focus { outline: 2px solid var(--brand-100); border-color: var(--brand); }
+      .row { display: flex; gap: 10px; align-items: flex-end; }
+      .row > div { flex: 1; }
+      button {
+        font-family: inherit; font-size: 13px; font-weight: 800; cursor: pointer;
+        border-radius: 10px; padding: 9px 16px; border: 1px solid transparent; transition: .15s;
+        display: inline-flex; align-items: center; gap: 6px;
+      }
+      .btn-primary { background: var(--brand); color: #fff; }
+      .btn-primary:hover { background: #0d6d65; }
+      .btn-primary:disabled { opacity: .5; cursor: not-allowed; }
+      .btn-outline { background: #fff; border-color: var(--ink-200); color: var(--ink-700); }
+      .btn-outline:hover { background: var(--ink-50); }
+      .urls { margin-top: 10px; display: grid; gap: 6px; }
+      .url {
+        display: flex; justify-content: space-between; align-items: center; gap: 8px;
+        background: var(--ink-50); border-radius: 10px; padding: 8px 12px; font-size: 13px;
+      }
+      .url code { font-family: 'Consolas', monospace; font-weight: 700; color: var(--brand); user-select: text; direction: ltr; }
+      .url span { font-size: 11px; color: var(--ink-500); }
+      .hint { font-size: 11.5px; color: var(--ink-500); margin-top: 10px; line-height: 1.9; }
+      .hint b { color: var(--ink-700); }
+      .status { font-size: 12px; font-weight: 800; margin-top: 8px; }
+      .status.ok { color: #047857; }
+      .status.bad { color: #b91c1c; }
+      footer {
+        margin-top: 18px; display: flex; justify-content: space-between; align-items: center;
+        border-top: 1px solid var(--ink-200); padding-top: 14px;
+      }
+      .muted { font-size: 11px; color: var(--ink-500); }
+      .spin { display: inline-block; width: 12px; height: 12px; border: 2px solid #fff6; border-top-color: #fff; border-radius: 50%; animation: r .7s linear infinite; }
+      @keyframes r { to { transform: rotate(360deg); } }
+    </style>
+  </head>
+  <body>
+    <h1>إعدادات الشبكة المحلية</h1>
+    <p class="sub">شغّل النظام على عدة أجهزة داخل الصيدلية ببيانات موحّدة — جهاز رئيسي واحد وبقية الأجهزة تتصل به.</p>
+
+    <div id="alert" class="alert" style="display:none"></div>
+
+    <div class="cards">
+      <label class="card" id="card-standalone">
+        <input type="radio" name="mode" value="standalone" />
+        <span>
+          <h3>جهاز واحد <span class="badge">الافتراضي</span></h3>
+          <p>كل شيء على هذا الجهاز فقط، ولا يستقبل أي اتصال من الشبكة. الخيار الأكثر أماناً للصيدلية ذات الجهاز الواحد.</p>
+        </span>
+      </label>
+
+      <label class="card" id="card-server">
+        <input type="radio" name="mode" value="server" />
+        <span>
+          <h3>خادم الشبكة (الجهاز الرئيسي)</h3>
+          <p>قاعدة البيانات على هذا الجهاز، ويسمح لبقية أجهزة الصيدلية بالعمل على نفس البيانات لحظياً. اتركه يعمل طوال الدوام.</p>
+        </span>
+      </label>
+
+      <label class="card" id="card-client">
+        <input type="radio" name="mode" value="client" />
+        <span>
+          <h3>متصل بالشبكة (جهاز فرعي)</h3>
+          <p>لا يحتفظ بأي بيانات محلية، بل يعمل على بيانات الجهاز الرئيسي مباشرة — مناسب لأجهزة الكاشير الإضافية.</p>
+        </span>
+      </label>
+    </div>
+
+    <!-- إعدادات وضع الخادم -->
+    <div class="panel" id="panel-server" style="display:none">
+      <div class="row">
+        <div>
+          <label class="field" for="port">منفذ الاتصال</label>
+          <input type="number" id="port" min="1024" max="65535" />
+        </div>
+        <button class="btn-outline" id="copyBtn">نسخ الرابط</button>
+      </div>
+      <div class="urls" id="urls"></div>
+      <p class="hint">
+        <b>على الأجهزة الأخرى:</b> افتح المتصفح على أحد الروابط أعلاه، أو ثبّت نفس البرنامج واختر «متصل بالشبكة».
+        <br />
+        <b>مهم:</b> عند أول تشغيل سيسألك ويندوز عن جدار الحماية — اختر <b>السماح</b> للشبكات الخاصة.
+        <br />
+        ويُفضّل أن يكون للجهاز الرئيسي عنوان IP ثابت حتى لا تتغيّر الروابط.
+      </p>
+    </div>
+
+    <!-- إعدادات وضع العميل -->
+    <div class="panel" id="panel-client" style="display:none">
+      <div class="row">
+        <div>
+          <label class="field" for="url">عنوان الجهاز الرئيسي</label>
+          <input type="text" id="url" placeholder="192.168.1.10:4100" dir="ltr" />
+        </div>
+        <button class="btn-outline" id="testBtn">اختبار الاتصال</button>
+      </div>
+      <div class="status" id="status"></div>
+      <p class="hint">
+        اكتب عنوان الجهاز الرئيسي كما يظهر عنده في «إعدادات الشبكة».
+        <br />
+        بياناتك ستكون على الجهاز الرئيسي، ولن تُحفظ نسخة محلية على هذا الجهاز.
+      </p>
+    </div>
+
+    <footer>
+      <span class="muted" id="meta"></span>
+      <span>
+        <button class="btn-outline" id="cancelBtn">إغلاق</button>
+        <button class="btn-primary" id="saveBtn">حفظ وإعادة التشغيل</button>
+      </span>
+    </footer>
+
+    <script>
+      const $ = (id) => document.getElementById(id);
+      const bridge = window.pharmacyNet;
+      let state = { mode: 'standalone', server_port: 4100, server_url: '', urls: [], addresses: [] };
+
+      const params = new URLSearchParams(location.search);
+      if (params.get('error')) {
+        $('alert').style.display = 'block';
+        $('alert').textContent = params.get('error');
+      }
+
+      function currentMode() {
+        return document.querySelector('input[name="mode"]:checked')?.value || 'standalone';
+      }
+
+      function renderUrls() {
+        const port = Number($('port').value) || state.server_port;
+        const list = (state.addresses || []).map((a) => ({ label: a.name, url: `http://${a.address}:${port}` }));
+        $('urls').innerHTML = list.length
+          ? list.map((u) => `<div class="url"><code>${u.url}</code><span>${u.label}</span></div>`).join('')
+          : '<div class="url"><span>لا يوجد اتصال شبكة نشط على هذا الجهاز — وصّل الكابل أو الواي فاي.</span></div>';
+      }
+
+      function syncPanels() {
+        const mode = currentMode();
+        document.querySelectorAll('.card').forEach((c) => c.classList.remove('active'));
+        $(`card-${mode}`).classList.add('active');
+        $('panel-server').style.display = mode === 'server' ? 'block' : 'none';
+        $('panel-client').style.display = mode === 'client' ? 'block' : 'none';
+        if (mode === 'server') renderUrls();
+      }
+
+      document.querySelectorAll('input[name="mode"]').forEach((r) => r.addEventListener('change', syncPanels));
+      $('port').addEventListener('input', renderUrls);
+
+      $('copyBtn').addEventListener('click', async () => {
+        const first = $('urls').querySelector('code')?.textContent;
+        if (first) { await bridge.copy(first); $('copyBtn').textContent = 'تم النسخ ✓'; setTimeout(() => { $('copyBtn').textContent = 'نسخ الرابط'; }, 1500); }
+      });
+
+      $('testBtn').addEventListener('click', async () => {
+        const status = $('status');
+        status.className = 'status';
+        status.textContent = 'جاري الفحص…';
+        const res = await bridge.test($('url').value);
+        status.className = `status ${res.ok ? 'ok' : 'bad'}`;
+        status.textContent = res.ok
+          ? `تم الاتصال بنجاح ✓  (${res.info?.name || 'نظام إدارة الصيدليات'})`
+          : `فشل الاتصال ✗  ${res.error}`;
+      });
+
+      $('cancelBtn').addEventListener('click', () => bridge.close());
+
+      $('saveBtn').addEventListener('click', async () => {
+        const btn = $('saveBtn');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spin"></span> جاري الحفظ…';
+        const res = await bridge.save({
+          mode: currentMode(),
+          server_port: $('port').value,
+          server_url: $('url').value,
+        });
+        if (!res.ok) {
+          $('alert').style.display = 'block';
+          $('alert').textContent = res.error;
+          btn.disabled = false;
+          btn.textContent = 'حفظ وإعادة التشغيل';
+        } else {
+          btn.innerHTML = '<span class="spin"></span> إعادة التشغيل…';
+        }
+      });
+
+      (async () => {
+        state = await bridge.state();
+        document.querySelector(`input[value="${state.mode}"]`).checked = true;
+        $('port').value = state.server_port;
+        $('url').value = state.server_url || '';
+        $('meta').textContent = `الإصدار ${state.version} — الوضع الحالي: ${
+          { standalone: 'جهاز واحد', server: 'خادم الشبكة', client: 'متصل بالشبكة' }[state.mode]
+        }`;
+        syncPanels();
+      })();
+    </script>
+  </body>
+</html>
