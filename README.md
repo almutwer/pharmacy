@@ -232,10 +232,19 @@ DATA_DIR=./data
 
 ```powershell
 npm install
-npm run app:setup     # مرة واحدة: تثبيت وإعادة بناء محرك قاعدة البيانات لـ Electron
-npm run app:start     # تجربة التطبيق كنافذة سطح مكتب
-npm run app:build     # إنتاج المثبّت + النسخة المحمولة داخل مجلد release/
+npm run app:setup
+npm run app:start
+npm run app:build
 ```
+
+| الأمر | ماذا يفعل |
+|---|---|
+| `npm run app:setup` | مرة واحدة: تثبيت وإعادة بناء محرك قاعدة البيانات ليعمل داخل Electron |
+| `npm run app:start` | تجربة التطبيق كنافذة سطح مكتب |
+| `npm run app:build` | إنتاج المثبّت + النسخة المحمولة داخل مجلد `release/` |
+
+> ⚠️ نفّذ كل أمر وحده. لا تنسخ أي تعليق بعده على نفس السطر — موجّه الأوامر `cmd.exe`
+> لا يفهم `#` كتعليق فيمرّره إلى البرنامج وتظهر رسالة مثل `Unknown target: #`.
 
 | المخرج | الوصف |
 |---|---|

@@ -48,9 +48,14 @@
 🖥️ تحويله إلى برنامج ويندوز (ملف EXE)
 ────────────────────────────────────────────────────────────
       npm install
-      npm run app:setup     (مرة واحدة — يحتاج أدوات بناء C++)
-      npm run app:start     (تجربة التطبيق كنافذة سطح مكتب)
-      npm run app:build     (إنتاج المثبّت داخل مجلد release)
+      npm run app:setup
+      npm run app:start
+      npm run app:build
+
+   • app:setup = مرة واحدة (يحتاج أدوات بناء C++)
+   • app:start = تجربة التطبيق كنافذة سطح مكتب
+   • app:build = إنتاج المثبّت داخل مجلد release
+   ⚠️ نفّذ كل أمر وحده بدون كتابة أي تعليق بعده على نفس السطر.
 
    المخرجات:
       release/PharmacySystem-1.0.0-x64.exe        ← مثبّت

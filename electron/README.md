@@ -54,8 +54,9 @@
 ```powershell
 cd pharmacy
 npm install
-npm run app:setup      # تثبيت better-sqlite3 وإعادة بنائه ليعمل داخل Electron
+npm run app:setup
 ```
+(الأمر الأخير يثبّت `better-sqlite3` ويعيد بناءه ليعمل داخل Electron)
 
 > **لماذا `app:setup`؟**
 > وضع التطوير يستخدم محرك `node:sqlite` المدمج في Node.js (يحتاج راية تشغيل خاصة).
@@ -70,10 +71,17 @@ npm run app:start
 
 ### 4) إنشاء ملفات التثبيت
 ```powershell
-npm run app:build             # مثبّت NSIS + نسخة محمولة (Portable)
-npm run app:build:portable    # نسخة محمولة فقط (ملف EXE واحد)
-npm run app:dir               # مجلد غير مضغوط للاختبار السريع
+npm run app:build
 ```
+| الأمر | الناتج |
+|---|---|
+| `npm run app:build` | مثبّت NSIS + نسخة محمولة (Portable) |
+| `npm run app:build:portable` | نسخة محمولة فقط (ملف EXE واحد) |
+| `npm run app:dir` | مجلد غير مضغوط للاختبار السريع |
+
+> ⚠️ **نفّذ الأمر وحده على سطر مستقل.** إن نسخت تعليقاً بعده على نفس السطر داخل
+> `cmd.exe` فسيُمرَّر إلى البرنامج وتظهر رسالة `Unknown target: #`. (في PowerShell
+> يعمل `#` كتعليق، أما موجّه الأوامر التقليدي فلا.)
 
 ### 5) المخرجات — مجلد `release/`
 | الملف | الوصف |
@@ -105,7 +113,9 @@ npm run app:dir               # مجلد غير مضغوط للاختبار ال
 | `NODE_MODULE_VERSION mismatch` | `npx electron-rebuild -f -w better-sqlite3` (اختلاف نسخة Electron عن Node) |
 | شاشة بيضاء عند الفتح | تأكد من وجود `client/dist` (`npm run build`) قبل التغليف |
 | «انتهت مهلة تشغيل الخادم الداخلي» | جدار الحماية يمنع الاستماع على `127.0.0.1` — اسمح للتطبيق |
+| خطأ في لغة المثبّت أو `Unsupported language` | احذف السطرين `installerLanguages` و`multiLanguageInstaller` من `package.json` ← `build.nsis` |
 | تحذير SmartScreen عند التثبيت | طبيعي للبرامج غير الموقّعة؛ للتخلص منه يلزم **شهادة توقيع كود** (Code Signing Certificate) وإضافتها في `build.win.certificateFile` |
+| `Unknown target: #` | نسخت تعليقاً بعد الأمر داخل `cmd.exe` — نفّذ `npm run app:build` وحده |
 | فشل تنزيل Electron أثناء `npm install` | ضع متغير `ELECTRON_MIRROR` لمرآة قريبة، أو أعد المحاولة عبر اتصال مستقر |
 
 ---
