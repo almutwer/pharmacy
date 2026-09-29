@@ -16,8 +16,9 @@ if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
 
 /**
  * اختيار محرك SQLite تلقائياً:
- *  1) better-sqlite3  → مطلوب عند التشغيل داخل Electron (تطبيق سطح المكتب)
- *  2) node:sqlite     → المحرك المدمج في Node.js 22+ (وضع الخادم/التطوير)
+ *  1) better-sqlite3  → يُستخدم إن كان مثبّتاً ومبنياً بشكل صحيح (اختياري تماماً)
+ *  2) node:sqlite     → المحرك المدمج في Node.js (22+ بالراية، و24+ بلا راية)
+ *                        وهو المحرك المستخدم داخل Electron 40+ لأنه يحزم Node 24
  * كلا المحركين يوفران نفس الواجهة: prepare().run/get/all و exec
  */
 function openDatabase() {
@@ -45,8 +46,10 @@ function openDatabase() {
   throw new Error(
     'تعذر فتح قاعدة البيانات — لا يوجد محرك SQLite متاح.\n'
     + (inElectron
-      ? 'داخل Electron يجب تثبيت وإعادة بناء better-sqlite3 عبر الأمر:\n  npm run app:setup\n'
-      : 'شغّل Node.js 22 أو أحدث مع الراية --experimental-sqlite، أو ثبّت better-sqlite3.\n')
+      ? 'إصدارات Electron 40 وما بعدها تحزم Node.js 24 ويتوفر فيها node:sqlite تلقائياً.\n'
+        + 'حدّث Electron:  npm i -D electron@latest\n'
+        + 'أو استخدم المحرك الأصلي:  npm run app:native\n'
+      : 'شغّل Node.js 24 أو أحدث، أو Node.js 22 مع الراية --experimental-sqlite، أو ثبّت better-sqlite3.\n')
     + `التفاصيل:\n - ${errors.join('\n - ')}`,
   );
 }

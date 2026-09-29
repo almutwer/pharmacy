@@ -24,6 +24,7 @@ const isDev = !app.isPackaged;
 let mainWindow = null;
 let splashWindow = null;
 let serverPort = 0;
+let serverInfo = {};
 
 /* ============ منع تشغيل أكثر من نسخة ============ */
 if (!app.requestSingleInstanceLock()) {
@@ -116,9 +117,14 @@ function waitForServer(timeoutMs = 30000) {
   return new Promise((resolve, reject) => {
     const ping = () => {
       const req = http.get({ host: '127.0.0.1', port: serverPort, path: '/api/health', timeout: 1500 }, (res) => {
-        res.resume();
-        if (res.statusCode === 200) return resolve();
-        return retry();
+        if (res.statusCode !== 200) { res.resume(); return retry(); }
+        let body = '';
+        res.on('data', (chunk) => { body += chunk; });
+        res.on('end', () => {
+          try { serverInfo = JSON.parse(body); } catch { serverInfo = {}; }
+          resolve();
+        });
+        return undefined;
       });
       req.on('error', retry);
       req.on('timeout', () => { req.destroy(); retry(); });
@@ -288,7 +294,8 @@ function buildMenu() {
               detail:
                 `الإصدار: ${app.getVersion()}\n`
                 + `Electron: ${process.versions.electron}\n`
-                + `Node.js: ${process.versions.node}\n\n`
+                + `Node.js: ${process.versions.node}\n`
+                + `محرك قاعدة البيانات: ${serverInfo.driver || 'غير معروف'}\n\n`
                 + `مجلد البيانات:\n${dataDir}\n\n`
                 + 'نظام متكامل لإدارة المخزون والمبيعات والمشتريات والأرباح والمصروفات ودليل الأدوية.',
               buttons: ['حسناً'],

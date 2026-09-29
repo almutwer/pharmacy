@@ -44,24 +44,21 @@
 
 ### 1) المتطلبات لمرة واحدة
 - **Node.js 20 أو أحدث** — <https://nodejs.org>
-- **أدوات البناء** (لازمة لتجميع محرك قاعدة البيانات):
-  ```powershell
-  npm install --global --production windows-build-tools
-  ```
-  أو ثبّت *Visual Studio Build Tools* مع حزمة **Desktop development with C++** + **Python 3.x**.
+- **لا شيء غير ذلك.** لا تحتاج Visual Studio ولا Python ولا أي مترجم C++.
 
 ### 2) تجهيز المشروع
 ```powershell
 cd pharmacy
 npm install
-npm run app:setup
 ```
-(الأمر الأخير يثبّت `better-sqlite3` ويعيد بناءه ليعمل داخل Electron)
 
-> **لماذا `app:setup`؟**
-> وضع التطوير يستخدم محرك `node:sqlite` المدمج في Node.js (يحتاج راية تشغيل خاصة).
-> داخل Electron لا يمكن تمرير تلك الراية، لذلك نستخدم `better-sqlite3`.
-> ملف `server/src/lib/db.js` يختار المحرك المتاح تلقائياً — لا حاجة لتعديل أي كود.
+> **من أين تأتي قاعدة البيانات؟**
+> Electron 40 وما بعدها تحزم **Node.js 24** الذي يتضمن محرك **`node:sqlite`** مدمجاً
+> ومستقراً بلا أي راية تشغيل. وملف `server/src/lib/db.js` يختار المحرك المتاح تلقائياً:
+> `better-sqlite3` إن وُجد، وإلا `node:sqlite`. لذلك **لا حاجة لأي وحدة أصلية (Native)**.
+>
+> إن أردت أداء `better-sqlite3` الأعلى — وكان جهازك يملك أدوات بناء C++ — نفّذ
+> `npm run app:native` (اختياري تماماً، وإن فشل فالتطبيق يعمل كما هو).
 
 ### 3) تجربة التطبيق قبل التغليف
 ```powershell
@@ -109,8 +106,9 @@ npm run app:build
 
 | المشكلة | الحل |
 |---|---|
-| رسالة «تعذر فتح قاعدة البيانات» | نفّذ `npm run app:setup` ثم أعد البناء |
-| `NODE_MODULE_VERSION mismatch` | `npx electron-rebuild -f -w better-sqlite3` (اختلاف نسخة Electron عن Node) |
+| `node-gyp failed to rebuild better-sqlite3` | لا تحتاج هذه الوحدة أصلاً: `npm uninstall better-sqlite3` ثم أعد `npm run app:build`. (إن أصررت عليها فثبّت *Visual Studio Build Tools* بحزمة **Desktop development with C++** + **Python 3.x**) |
+| رسالة «تعذر فتح قاعدة البيانات» | تأكد أن Electron 40 أو أحدث: `npm i -D electron@latest` |
+| `NODE_MODULE_VERSION mismatch` | `npm uninstall better-sqlite3` (أو `npx electron-rebuild -f -w better-sqlite3`) |
 | شاشة بيضاء عند الفتح | تأكد من وجود `client/dist` (`npm run build`) قبل التغليف |
 | «انتهت مهلة تشغيل الخادم الداخلي» | جدار الحماية يمنع الاستماع على `127.0.0.1` — اسمح للتطبيق |
 | خطأ في لغة المثبّت أو `Unsupported language` | احذف السطرين `installerLanguages` و`multiLanguageInstaller` من `package.json` ← `build.nsis` |
@@ -126,5 +124,5 @@ npx electron-builder --linux    # AppImage
 npx electron-builder --mac      # DMG (يتطلب جهاز macOS)
 ```
 
-> **ملاحظة:** بناء نسخة ويندوز يجب أن يتم على جهاز ويندوز، لأن `better-sqlite3`
-> وحدة أصلية (Native) تُجمَّع لنظام التشغيل المستهدف.
+> **ملاحظة:** يُفضّل بناء نسخة ويندوز على جهاز ويندوز. وبما أن النظام لا يستخدم أي وحدة
+> أصلية افتراضياً، فالبناء لا يحتاج مترجماً ولا يتأثر باختلاف المعمارية.
