@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <title>جاري التشغيل…</title>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body {
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 18px;
+        background: radial-gradient(120% 120% at 20% 0%, #12856b 0%, #0f172a 55%);
+        color: #fff;
+        font-family: 'Tajawal', 'Segoe UI', system-ui, sans-serif;
+        user-select: none;
+        border-radius: 12px;
+        overflow: hidden;
+      }
+      .logo {
+        width: 74px; height: 74px; border-radius: 20px;
+        background: #12856b;
+        display: grid; place-items: center;
+        box-shadow: 0 12px 36px rgba(0, 0, 0, .45);
+      }
+      .logo svg { width: 42px; height: 42px; fill: #fff; }
+      h1 { font-size: 19px; font-weight: 800; letter-spacing: .2px; }
+      p  { font-size: 12px; color: #94a3b8; }
+      .bar {
+        width: 210px; height: 4px; border-radius: 999px;
+        background: rgba(255, 255, 255, .12); overflow: hidden;
+      }
+      .bar span {
+        display: block; width: 40%; height: 100%; border-radius: 999px;
+        background: linear-gradient(90deg, #42c09c, #1fa583);
+        animation: slide 1.1s ease-in-out infinite;
+      }
+      @keyframes slide {
+        0%   { transform: translateX(-120%); }
+        100% { transform: translateX(340%); }
+      }
+      footer { position: absolute; bottom: 14px; font-size: 10px; color: #64748b; }
+    </style>
+  </head>
+  <body>
+    <div class="logo">
+      <svg viewBox="0 0 100 100"><path d="M42 18h16v24h24v16H58v24H42V58H18V42h24z" /></svg>
+    </div>
+    <h1>نظام إدارة الصيدليات</h1>
+    <div class="bar"><span></span></div>
+    <p>جاري تهيئة قاعدة البيانات وتشغيل النظام…</p>
+    <footer>الرجاء الانتظار بضع ثوانٍ</footer>
+  </body>
+</html>
