@@ -5,6 +5,7 @@
  * ============================================================
  *  الاستخدام:
  *    npm run keygen init                       تهيئة زوج المفاتيح (مرة واحدة)
+ *    npm run keygen sync                       إعادة ربط المفتاح العام بعد تحديث الملفات
  *    npm run keygen machine                    عرض معرف هذا الجهاز
  *    npm run keygen issue --machine XXXX-...   إصدار مفتاح تفعيل لعميل
  *    npm run keygen verify <المفتاح>            التحقق من مفتاح
@@ -75,10 +76,50 @@ function machineId() {
 
 /* ===================== الأوامر ===================== */
 
+/** كتابة المفتاح العام داخل كود النظام */
+function writePublicModule(pub) {
+  const module = `/**
+ * المفتاح العام للتحقق من تراخيص التفعيل (Ed25519)
+ * ----------------------------------------------------------------
+ *  • يُولَّد مرة واحدة عند المطوّر بالأمر:  npm run keygen init
+ *  • الأمر يكتب المفتاح العام هنا تلقائياً، ويحفظ المفتاح الخاص في
+ *    tools/keys/private.pem  (مستثنى من Git — لا يُسلَّم للعميل أبداً)
+ *  • بعد أي تحديث للملفات نفّذ:  npm run keygen sync  لإعادة كتابته
+ * ----------------------------------------------------------------
+ */
+export const LICENSE_PUBLIC_KEY = \`${pub.trim()}\`;
+
+export default LICENSE_PUBLIC_KEY;
+`;
+  fs.writeFileSync(PUBLIC_MODULE, module, 'utf8');
+}
+
+/** إعادة ربط المفتاح العام بالكود بعد تحديث الملفات */
+function cmdSync() {
+  if (!fs.existsSync(PUBLIC_FILE)) {
+    console.log(C.r('✘ لا يوجد مفتاح عام محفوظ في tools/keys/public.pem'));
+    console.log(C.d('   إن كانت هذه أول مرة نفّذ:  npm run keygen init'));
+    process.exit(1);
+  }
+  const pub = fs.readFileSync(PUBLIC_FILE, 'utf8');
+  const before = fs.existsSync(PUBLIC_MODULE) ? fs.readFileSync(PUBLIC_MODULE, 'utf8') : '';
+  writePublicModule(pub);
+
+  if (before.includes(pub.trim())) {
+    console.log(C.g('✅ المفتاح العام مرتبط بالكود أصلاً — لا حاجة لأي إجراء'));
+  } else {
+    console.log(C.g('✅ تمت إعادة ربط المفتاح العام بالكود'));
+    console.log(C.y('   أعد بناء التطبيق ليسري على النسخ الجديدة:  npm run app:build'));
+  }
+  console.log(C.d('   كل المفاتيح الصادرة سابقاً تبقى صالحة.'));
+}
+
 function cmdInit(opts) {
   if (fs.existsSync(PRIVATE_FILE) && !opts.force) {
-    console.log(C.y('⚠️  يوجد زوج مفاتيح بالفعل في tools/keys/'));
-    console.log(C.d('   استخدم --force لإعادة التوليد (ستتوقف كل المفاتيح الصادرة سابقاً عن العمل)'));
+    console.log(C.y('⚠️  يوجد زوج مفاتيح بالفعل في tools/keys/ — لن يُعاد توليده.'));
+    console.log(C.d('   سيتم فقط التأكد من ربط المفتاح العام بالكود:\n'));
+    cmdSync();
+    console.log(C.d('\n   لإعادة التوليد من الصفر استخدم --force (ستتوقف كل المفاتيح الصادرة سابقاً).'));
     return;
   }
 
@@ -90,20 +131,7 @@ function cmdInit(opts) {
   fs.writeFileSync(PRIVATE_FILE, priv, { mode: 0o600 });
   fs.writeFileSync(PUBLIC_FILE, pub);
 
-  const module = `/**
- * المفتاح العام للتحقق من تراخيص التفعيل (Ed25519)
- * ----------------------------------------------------------------
- *  • يُولَّد مرة واحدة عند المطوّر بالأمر:  npm run keygen init
- *  • الأمر يكتب المفتاح العام هنا تلقائياً، ويحفظ المفتاح الخاص في
- *    tools/keys/private.pem  (مستثنى من Git — لا يُسلَّم للعميل أبداً)
- *  • ما دامت هذه القيمة فارغة يعمل النظام بدون تفعيل (وضع التطوير)
- * ----------------------------------------------------------------
- */
-export const LICENSE_PUBLIC_KEY = \`${pub.trim()}\`;
-
-export default LICENSE_PUBLIC_KEY;
-`;
-  fs.writeFileSync(PUBLIC_MODULE, module, 'utf8');
+  writePublicModule(pub);
 
   console.log(C.g('✅ تم توليد زوج المفاتيح'));
   console.log(`   المفتاح الخاص : ${C.b('tools/keys/private.pem')}  ${C.r('(احتفظ به ولا تسلّمه لأحد)')}`);
@@ -232,6 +260,7 @@ ${C.b('أداة توليد مفاتيح تفعيل نظام إدارة الصي�
   ${C.g('npm run keygen issue -- --machine <ID>')}     إصدار مفتاح تفعيل
   ${C.g('npm run keygen verify -- <KEY>')}             التحقق من مفتاح
   ${C.g('npm run keygen list')}                        عرض سجل المفاتيح الصادرة
+  ${C.g('npm run keygen sync')}                        إعادة ربط المفتاح العام بعد تحديث الملفات
 
 ${C.b('خيارات الإصدار:')}
   --machine <ID>     معرف جهاز العميل، أو "*" ليعمل على أي جهاز
@@ -248,6 +277,7 @@ const opts = args();
 
 switch (cmd) {
   case 'init': cmdInit(opts); break;
+  case 'sync': cmdSync(); break;
   case 'issue': cmdIssue(opts); break;
   case 'verify': cmdVerify(opts); break;
   case 'list': cmdList(); break;
