@@ -7,6 +7,8 @@ import db from '../lib/db.js';
 import { requireAuth, requireRole } from '../lib/auth.js';
 import { wrap, parse, notFound, HttpError, logActivity, getSettingNumber, round } from '../lib/helpers.js';
 import { addBatch, recordMovement, allocateFEFO, deductBatch, restoreBatch } from '../lib/stock.js';
+import { createWorkbook, addSheet, addGuideSheet, sendWorkbook, readSheetRows, decodeUpload } from '../lib/excel.js';
+import { BATCH_COLUMNS, exportColumns, templateColumns } from '../lib/io-columns.js';
 
 const router = Router();
 router.use(requireAuth);
@@ -208,10 +210,125 @@ router.post(
   }),
 );
 
+
+/* ============ تصدير واستيراد الدفعات (تعديل الصلاحيات والأسعار) ============ */
+
+const BATCH_QUERY = `
+  SELECT b.id, b.batch_no, b.expiry_date, b.cost_price, b.sale_price, b.qty_available, b.qty_in,
+         p.name AS product_name, s.name AS supplier_name
+  FROM batches b
+  JOIN products p ON p.id = b.product_id
+  LEFT JOIN suppliers s ON s.id = b.supplier_id
+`;
+
+/** تصدير الدفعات إلى Excel */
+router.get(
+  '/batches/export',
+  wrap(async (req, res) => {
+    const where = ['1=1'];
+    const params = [];
+    if (req.query.product_id) { where.push('b.product_id = ?'); params.push(Number(req.query.product_id)); }
+    if (req.query.q) {
+      where.push('(p.name LIKE ? OR b.batch_no LIKE ?)');
+      params.push(`%${req.query.q}%`, `%${req.query.q}%`);
+    }
+    if (req.query.in_stock === '1') where.push('b.qty_available > 0');
+
+    const rows = db.all(`${BATCH_QUERY} WHERE ${where.join(' AND ')} ORDER BY p.name COLLATE NOCASE, b.expiry_date`, params);
+
+    const wb = createWorkbook();
+    addSheet(wb, {
+      name: 'الدفعات',
+      title: 'دفعات المخزون وتواريخ الصلاحية',
+      note: `عدد الدفعات: ${rows.length} — عدّل تاريخ الصلاحية أو الأسعار ثم أعد رفع الملف`,
+      columns: exportColumns(BATCH_COLUMNS),
+      rows,
+    });
+    logActivity(req.user.id, 'export', 'batches', null, `تصدير ${rows.length} دفعة`);
+    await sendWorkbook(res, wb, `الدفعات-${new Date().toISOString().slice(0, 10)}.xlsx`);
+  }),
+);
+
+/** قالب تعديل الدفعات */
+router.get(
+  '/batches/template',
+  wrap(async (req, res) => {
+    const cols = templateColumns(BATCH_COLUMNS);
+    const wb = createWorkbook();
+    addSheet(wb, { name: 'الدفعات', columns: cols, rows: [] });
+    addGuideSheet(wb, {
+      columns: cols,
+      title: 'تعليمات تعديل الدفعات وتواريخ الصلاحية',
+      lines: [
+        '١) الطريقة الصحيحة: صدّر الدفعات من زر «تصدير Excel»، عدّل ما تريد، ثم ارفع نفس الملف.',
+        '٢) عمود «معرف الدفعة» إلزامي ولا يجوز تغييره — به يعرف النظام الدفعة المقصودة.',
+        '٣) يمكنك تعديل: رقم الدفعة، تاريخ الصلاحية، سعر التكلفة، سعر البيع.',
+        '٤) لا يمكن تعديل الكمية من هنا — استخدم «تسوية مخزنية» حتى تبقى حركة المخزون موثّقة.',
+        '٥) صيغة التاريخ: YYYY-MM-DD مثل 2028-06-30.',
+      ],
+    });
+    await sendWorkbook(res, wb, 'قالب-تعديل-الدفعات.xlsx');
+  }),
+);
+
+/** استيراد تعديلات الدفعات من Excel */
+router.post(
+  '/batches/import-file',
+  requireRole('manager', 'pharmacist'),
+  wrap(async (req, res) => {
+    const body = parse(z.object({
+      file: z.string().min(1),
+      filename: z.string().optional().default(''),
+      dry_run: z.coerce.boolean().default(false),
+    }), req.body);
+
+    const buffer = decodeUpload(body.file);
+    const { rows, unknown, matched } = await readSheetRows(buffer, BATCH_COLUMNS, body.filename);
+    if (!rows.length) throw new HttpError(400, 'لا توجد صفوف بيانات في الملف');
+    if (rows.length > 5000) throw new HttpError(400, 'الحد الأقصى 5000 صف في الملف الواحد');
+
+    const result = { total: rows.length, created: 0, updated: 0, skipped: 0, errors: [], matched, unknown };
+
+    const run = () => {
+      for (const row of rows) {
+        const label = row.product_name || `دفعة ${row.id || row.__row}`;
+        try {
+          if (!row.id) throw new Error('عمود «معرف الدفعة» مطلوب لتحديث الدفعة');
+          const batch = db.get('SELECT * FROM batches WHERE id = ?', [row.id]);
+          if (!batch) throw new Error(`لا توجد دفعة بالمعرف ${row.id}`);
+
+          const payload = {};
+          if (row.batch_no !== undefined && row.batch_no !== null) payload.batch_no = row.batch_no;
+          if (row.expiry_date !== undefined && row.expiry_date !== null) payload.expiry_date = row.expiry_date;
+          if (row.cost_price !== undefined && row.cost_price !== null) payload.cost_price = row.cost_price;
+          if (row.sale_price !== undefined && row.sale_price !== null) payload.sale_price = row.sale_price;
+
+          const changed = Object.keys(payload).some((k) => String(batch[k] ?? '') !== String(payload[k] ?? ''));
+          if (!Object.keys(payload).length || !changed) { result.skipped += 1; continue; }
+
+          if (!body.dry_run) db.update('batches', payload, 'id = ?', [row.id]);
+          result.updated += 1;
+        } catch (err) {
+          result.errors.push({ row: row.__row, name: label, message: err.message || 'خطأ غير معروف' });
+          result.skipped += 1;
+        }
+      }
+    };
+
+    if (body.dry_run) run();
+    else db.tx(run);
+
+    if (!body.dry_run) {
+      logActivity(req.user.id, 'import', 'batches', null, `Excel: تعديل ${result.updated} دفعة`);
+    }
+    res.json({ ok: true, dry_run: body.dry_run, ...result });
+  }),
+);
+
 /** تعديل بيانات دفعة */
 router.put(
   '/batches/:id',
-  requireRole('manager'),
+  requireRole('manager', 'pharmacist'),
   wrap((req, res) => {
     const id = Number(req.params.id);
     const batch = db.get('SELECT * FROM batches WHERE id = ?', [id]);
@@ -225,9 +342,14 @@ router.put(
       }),
       req.body,
     );
+    if (!Object.keys(data).length) throw new HttpError(400, 'لا يوجد ما يُحدَّث');
     db.update('batches', data, 'id = ?', [id]);
-    logActivity(req.user.id, 'update', 'batches', id, null);
-    res.json({ ok: true });
+    const updated = db.get('SELECT * FROM batches WHERE id = ?', [id]);
+    logActivity(
+      req.user.id, 'update', 'batches', id,
+      `تعديل دفعة${data.expiry_date ? ` — الصلاحية: ${data.expiry_date}` : ''}`,
+    );
+    res.json({ ok: true, data: updated });
   }),
 );
 

@@ -24,6 +24,8 @@ import salesRoutes from './routes/sales.js';
 import expensesRoutes from './routes/expenses.js';
 import reportsRoutes from './routes/reports.js';
 import settingsRoutes from './routes/settings.js';
+import licenseRoutes from './routes/license.js';
+import { licenseStatus, licenseEnforced, machineId } from './lib/license.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PORT = Number(process.env.PORT || 4000);
@@ -36,6 +38,24 @@ app.disable('x-powered-by');
 app.use(cors());
 app.use(express.json({ limit: '60mb' }));
 if (process.env.NODE_ENV !== 'test') app.use(morgan('dev'));
+
+app.use('/api/license', licenseRoutes);
+
+/**
+ * حارس التفعيل: يمنع تشغيل النظام على جهاز غير مرخَّص
+ * (نقطة الفحص ومسارات التفعيل تبقى مفتوحة حتى يمكن التفعيل)
+ */
+app.use('/api', (req, res, next) => {
+  if (!licenseEnforced()) return next();
+  if (req.path === '/health' || req.path.startsWith('/license')) return next();
+  const status = licenseStatus();
+  if (status.active) return next();
+  return res.status(402).json({
+    error: status.reason || 'النسخة غير مفعّلة على هذا الجهاز',
+    code: 'LICENSE_REQUIRED',
+    machine_id: status.machine_id,
+  });
+});
 
 app.get('/api/health', (req, res) => res.json({
   ok: true,
@@ -83,6 +103,8 @@ app.use((err, req, res, next) => {
 const server = app.listen(PORT, HOST, () => {
   console.log(`✅ خادم نظام الصيدلية يعمل على http://${HOST}:${PORT}`);
   console.log(`   محرك قاعدة البيانات: ${db.driver}  |  الملف: ${db.file}`);
+  const lic = licenseStatus();
+  console.log(`   معرف الجهاز: ${machineId()}  |  التفعيل: ${lic.enforced ? (lic.active ? 'مفعّل' : `مطلوب — ${lic.reason}`) : 'غير مُلزم'}`);
 });
 
 export { app, server };

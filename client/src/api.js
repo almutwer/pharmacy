@@ -30,6 +30,7 @@ async function request(method, path, body, options = {}) {
     setToken(null);
     if (!path.startsWith('/auth/login')) window.dispatchEvent(new CustomEvent('auth:expired'));
   }
+  if (res.status === 402) window.dispatchEvent(new CustomEvent('license:required'));
 
   const text = await res.text();
   const data = text ? JSON.parse(text) : null;

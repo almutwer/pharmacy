@@ -67,3 +67,15 @@ export const templateColumns = (cols) => cols.filter((c) => !c.readOnly);
 
 /** الأعمدة التي يمكن كتابتها فعلياً في قاعدة البيانات */
 export const writableColumns = (cols) => cols.filter((c) => !c.readOnly && c.key !== 'id');
+
+/** أعمدة ملف الدفعات (تعديل تواريخ الصلاحية والأسعار بعد الإنشاء) */
+export const BATCH_COLUMNS = [
+  { key: 'id', header: 'معرف الدفعة', width: 12, type: 'int', required: true, hint: 'إلزامي — لا تغيّره. هو مفتاح تحديث الدفعة.' },
+  { key: 'product_name', header: 'الصنف', width: 28, readOnly: true, hint: 'للاطلاع فقط.' },
+  { key: 'batch_no', header: 'رقم الدفعة', width: 16, hint: 'قابل للتعديل.' },
+  { key: 'expiry_date', header: 'تاريخ الصلاحية', width: 15, type: 'date', aliases: ['الصلاحية', 'تاريخ الانتهاء'], hint: 'قابل للتعديل — بصيغة YYYY-MM-DD.' },
+  { key: 'cost_price', header: 'سعر التكلفة', width: 14, type: 'money', aliases: ['التكلفة'], hint: 'تكلفة الوحدة في هذه الدفعة.' },
+  { key: 'sale_price', header: 'سعر البيع', width: 14, type: 'money', hint: 'سعر بيع هذه الدفعة (اختياري).' },
+  { key: 'qty_available', header: 'الكمية المتاحة', width: 14, type: 'number', readOnly: true, hint: 'لتعديل الكمية استخدم «تسوية مخزنية» حتى تبقى الحركة موثّقة.' },
+  { key: 'supplier_name', header: 'المورد', width: 18, readOnly: true, hint: 'للاطلاع فقط.' },
+];

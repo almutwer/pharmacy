@@ -15,3 +15,5 @@ server/data/
 .idea/
 release/
 electron/out/
+tools/keys/
+*.lic

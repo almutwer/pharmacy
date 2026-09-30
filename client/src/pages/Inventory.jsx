@@ -40,6 +40,7 @@ export default function Inventory() {
   const [adjust, setAdjust] = useState(null);
   const [deleteId, setDeleteId] = useState(null);
   const [disposeOpen, setDisposeOpen] = useState(false);
+  const [editBatch, setEditBatch] = useState(null);
 
   const loadSummary = useCallback(() => api.get('/inventory/summary').then(setSummary), []);
 
@@ -200,7 +201,7 @@ export default function Inventory() {
         </>
       )}
 
-      {tab === 'expiry' && <ExpiryTab currency={currency} canManage={can('manager')} onDispose={() => setDisposeOpen(true)} />}
+      {tab === 'expiry' && <ExpiryTab currency={currency} canManage={can('manager')} canEdit={can('pharmacist')} onDispose={() => setDisposeOpen(true)} />}
       {tab === 'low' && <LowStockTab currency={currency} />}
       {tab === 'movements' && <MovementsTab currency={currency} />}
 
@@ -330,9 +331,9 @@ export default function Inventory() {
               <p className="mb-2 flex items-center gap-2 font-extrabold text-ink-800"><Layers className="h-4 w-4 text-brand-600" /> الدفعات</p>
               <div className="table-wrap">
                 <table className="tbl">
-                  <thead><tr><th>رقم الدفعة</th><th>الصلاحية</th><th>الوارد</th><th>المتاح</th><th>التكلفة</th><th>المورد</th></tr></thead>
+                  <thead><tr><th>رقم الدفعة</th><th>الصلاحية</th><th>الوارد</th><th>المتاح</th><th>التكلفة</th><th>المورد</th><th></th></tr></thead>
                   <tbody>
-                    {detail.batches.length === 0 && <tr><td colSpan={6}><EmptyState title="لا توجد دفعات" /></td></tr>}
+                    {detail.batches.length === 0 && <tr><td colSpan={7}><EmptyState title="لا توجد دفعات" /></td></tr>}
                     {detail.batches.map((b) => {
                       const exp = expiryState(b.expiry_date);
                       return (
@@ -343,6 +344,17 @@ export default function Inventory() {
                           <td className="num font-extrabold">{fmtNum(b.qty_available, 0)}</td>
                           <td className="num">{fmtNum(b.cost_price)}</td>
                           <td className="text-xs text-ink-400">{b.supplier_name || '—'}</td>
+                          <td>
+                            {can('pharmacist') && (
+                              <button
+                                className="btn-outline btn-sm"
+                                title="تعديل تاريخ الصلاحية والأسعار"
+                                onClick={() => setEditBatch({ ...b, product_name: detail.data.name })}
+                              >
+                                <Pencil className="h-3.5 w-3.5" />
+                              </button>
+                            )}
+                          </td>
                         </tr>
                       );
                     })}
@@ -385,6 +397,18 @@ export default function Inventory() {
         title="حذف الصنف" confirmLabel="حذف"
         message="سيتم حذف الصنف نهائياً إن لم يكن مرتبطاً بحركات، وإلا سيتم إيقافه فقط."
       />
+      {editBatch && (
+        <BatchEditModal
+          batch={editBatch}
+          onClose={() => setEditBatch(null)}
+          onSaved={async () => {
+            setEditBatch(null);
+            if (detail) setDetail(await api.get(`/products/${detail.data.id}`));
+            load(); loadSummary();
+          }}
+        />
+      )}
+
       <ConfirmDialog
         open={disposeOpen} onClose={() => setDisposeOpen(false)} onConfirm={disposeExpired} danger
         title="إتلاف الدفعات المنتهية" confirmLabel="تنفيذ الإتلاف"
@@ -395,16 +419,18 @@ export default function Inventory() {
 }
 
 /* ================== تبويب الصلاحيات ================== */
-function ExpiryTab({ currency, canManage, onDispose }) {
+function ExpiryTab({ currency, canManage, onDispose, canEdit }) {
   const [mode, setMode] = useState('soon');
   const [days, setDays] = useState(90);
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [editBatch, setEditBatch] = useState(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     setLoading(true);
     api.get('/inventory/expiry', { mode, days }).then((r) => setRows(r.data)).finally(() => setLoading(false));
-  }, [mode, days]);
+  }, [mode, days, reloadKey]);
 
   return (
     <>
@@ -421,12 +447,19 @@ function ExpiryTab({ currency, canManage, onDispose }) {
             <Field label="خلال (يوم)"><Input type="number" className="w-28" value={days} onChange={(e) => setDays(e.target.value)} /></Field>
           )}
         </div>
-        {canManage && <button className="btn-danger" onClick={onDispose}><Trash className="h-4 w-4" /> إتلاف المنتهي</button>}
+        <div className="flex flex-wrap gap-2">
+          <ExcelIO
+            entity="batches"
+            canImport={canEdit}
+            onDone={() => setReloadKey((k) => k + 1)}
+          />
+          {canManage && <button className="btn-danger" onClick={onDispose}><Trash className="h-4 w-4" /> إتلاف المنتهي</button>}
+        </div>
       </Card>
 
       <Table
         loading={loading}
-        columns={['الصنف', 'التصنيف', 'رقم الدفعة', 'تاريخ الانتهاء', 'المتبقي', 'الكمية', 'التكلفة', 'القيمة']}
+        columns={['الصنف', 'التصنيف', 'رقم الدفعة', 'تاريخ الانتهاء', 'المتبقي', 'الكمية', 'التكلفة', 'القيمة', '']}
         rows={rows}
         empty={<EmptyState title="لا توجد دفعات في هذا النطاق" icon={CalendarClock} />}
         renderRow={(b) => {
@@ -443,10 +476,29 @@ function ExpiryTab({ currency, canManage, onDispose }) {
               <td className="num font-extrabold">{fmtNum(b.qty_available, 0)} {b.unit}</td>
               <td className="num">{fmtNum(b.cost_price)}</td>
               <td className="num font-bold text-rose-600">{fmtNum(b.value)} {currency}</td>
+              <td>
+                {canEdit && (
+                  <button
+                    className="btn-outline btn-sm"
+                    title="تعديل تاريخ الصلاحية والأسعار"
+                    onClick={() => setEditBatch(b)}
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </td>
             </tr>
           );
         }}
       />
+
+      {editBatch && (
+        <BatchEditModal
+          batch={editBatch}
+          onClose={() => setEditBatch(null)}
+          onSaved={() => { setEditBatch(null); setReloadKey((k) => k + 1); }}
+        />
+      )}
     </>
   );
 }
@@ -623,3 +675,57 @@ const Info = ({ label, value }) => (
     <p className="num font-extrabold text-ink-800">{value}</p>
   </div>
 );
+
+/* ================== تعديل دفعة (الصلاحية والأسعار) ================== */
+export function BatchEditModal({ batch, onClose, onSaved }) {
+  const toast = useToast();
+  const [form, setForm] = useState({
+    batch_no: batch.batch_no || '',
+    expiry_date: batch.expiry_date || '',
+    cost_price: batch.cost_price ?? 0,
+    sale_price: batch.sale_price ?? 0,
+  });
+  const [busy, setBusy] = useState(false);
+
+  const save = async () => {
+    setBusy(true);
+    try {
+      await api.put(`/inventory/batches/${batch.id}`, {
+        batch_no: form.batch_no || null,
+        expiry_date: form.expiry_date || null,
+        cost_price: Number(form.cost_price) || 0,
+        sale_price: Number(form.sale_price) || 0,
+      });
+      toast.success('تم تحديث بيانات الدفعة');
+      onSaved?.();
+    } catch (err) { toast.error(err.message); } finally { setBusy(false); }
+  };
+
+  return (
+    <Modal
+      open onClose={onClose} size="sm"
+      title="تعديل الدفعة"
+      subtitle={batch.product_name || batch.name || 'تعديل تاريخ الصلاحية والأسعار'}
+      footer={<>
+        <button className="btn-ghost" onClick={onClose}>إلغاء</button>
+        <button className="btn-primary" onClick={save} disabled={busy}>حفظ التعديلات</button>
+      </>}
+    >
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Field label="رقم الدفعة"><Input value={form.batch_no} onChange={(e) => setForm({ ...form, batch_no: e.target.value })} /></Field>
+        <Field label="تاريخ الصلاحية">
+          <Input type="date" value={form.expiry_date || ''} onChange={(e) => setForm({ ...form, expiry_date: e.target.value })} />
+        </Field>
+        <Field label="سعر التكلفة">
+          <Input type="number" step="0.01" value={form.cost_price} onChange={(e) => setForm({ ...form, cost_price: e.target.value })} />
+        </Field>
+        <Field label="سعر البيع">
+          <Input type="number" step="0.01" value={form.sale_price} onChange={(e) => setForm({ ...form, sale_price: e.target.value })} />
+        </Field>
+        <p className="sm:col-span-2 rounded-xl bg-ink-50 p-3 text-[11px] leading-6 text-ink-500">
+          الكمية لا تُعدَّل من هنا — استخدم «تسوية مخزنية» حتى تبقى حركة المخزون موثّقة.
+        </p>
+      </div>
+    </Modal>
+  );
+}

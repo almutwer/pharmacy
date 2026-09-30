@@ -17,6 +17,13 @@ const ENTITIES = {
     templateName: 'قالب-المخزون.xlsx',
     unit: 'صنف',
   },
+  batches: {
+    base: '/inventory/batches',
+    title: 'الدفعات وتواريخ الصلاحية',
+    exportName: () => `الدفعات-${new Date().toISOString().slice(0, 10)}.xlsx`,
+    templateName: 'قالب-تعديل-الدفعات.xlsx',
+    unit: 'دفعة',
+  },
   catalog: {
     base: '/catalog',
     title: 'دليل الأدوية',
@@ -167,7 +174,7 @@ function ImportModal({ cfg, onClose, onDone }) {
         </div>
 
         {/* الخيارات */}
-        {!result && (
+        {!result && cfg.base !== '/inventory/batches' && (
           <Field label="عند وجود سجل مطابق" hint="المطابقة بالمعرف، ثم الباركود، ثم الاسم">
             <Select value={mode} onChange={(e) => { setMode(e.target.value); setPreview(null); }}>
               <option value="upsert">تحديث بيانات السجل الموجود (موصى به)</option>

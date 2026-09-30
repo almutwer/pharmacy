@@ -11,6 +11,7 @@ export function AppProvider({ children }) {
   const [user, setUser] = useState(null);
   const [settings, setSettings] = useState({});
   const [booting, setBooting] = useState(true);
+  const [license, setLicense] = useState(null);
 
   const loadSettings = useCallback(async () => {
     try {
@@ -19,7 +20,20 @@ export function AppProvider({ children }) {
     } catch { /* تجاهل */ }
   }, []);
 
+  const checkLicense = useCallback(async () => {
+    try {
+      const res = await api.get('/license/status');
+      setLicense(res);
+      return res;
+    } catch {
+      setLicense(null);
+      return null;
+    }
+  }, []);
+
   const bootstrap = useCallback(async () => {
+    const lic = await checkLicense();
+    if (lic && lic.enforced && !lic.active) { setBooting(false); return; }
     if (!getToken()) { setBooting(false); return; }
     try {
       const res = await api.get('/auth/me');
@@ -31,15 +45,20 @@ export function AppProvider({ children }) {
     } finally {
       setBooting(false);
     }
-  }, [loadSettings]);
+  }, [loadSettings, checkLicense]);
 
   useEffect(() => { bootstrap(); }, [bootstrap]);
 
   useEffect(() => {
     const onExpired = () => setUser(null);
+    const onLicense = () => { checkLicense(); setUser(null); };
     window.addEventListener('auth:expired', onExpired);
-    return () => window.removeEventListener('auth:expired', onExpired);
-  }, []);
+    window.addEventListener('license:required', onLicense);
+    return () => {
+      window.removeEventListener('auth:expired', onExpired);
+      window.removeEventListener('license:required', onLicense);
+    };
+  }, [checkLicense]);
 
   const login = async (username, password) => {
     const res = await api.post('/auth/login', { username, password });
@@ -56,6 +75,9 @@ export function AppProvider({ children }) {
 
   const value = useMemo(() => ({
     user,
+    license,
+    licenseBlocked: !!(license && license.enforced && !license.active),
+    recheckLicense: checkLicense,
     settings,
     currency: settings.currency || 'ر.س',
     booting,
@@ -64,7 +86,7 @@ export function AppProvider({ children }) {
     reloadSettings: loadSettings,
     setSettings,
     can: (minRole) => !!user && ROLE_RANK[user.role] >= ROLE_RANK[minRole],
-  }), [user, settings, booting, loadSettings]);
+  }), [user, license, settings, booting, loadSettings, checkLicense]);
 
   return <AppCtx.Provider value={value}>{children}</AppCtx.Provider>;
 }

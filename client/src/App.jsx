@@ -5,6 +5,7 @@ import Layout from './components/Layout.jsx';
 import { Loading } from './components/ui.jsx';
 
 import Login from './pages/Login.jsx';
+import Activate from './pages/Activate.jsx';
 import Dashboard from './pages/Dashboard.jsx';
 import POS from './pages/POS.jsx';
 import Sales from './pages/Sales.jsx';
@@ -30,10 +31,14 @@ function Guard({ role, children }) {
 }
 
 export default function App() {
-  const { user, booting } = useApp();
+  const { user, booting, license, licenseBlocked } = useApp();
 
   if (booting) {
     return <div className="grid min-h-screen place-items-center bg-ink-50"><Loading label="جاري تهيئة النظام..." /></div>;
+  }
+
+  if (licenseBlocked) {
+    return <Activate status={license} onActivated={() => window.location.reload()} />;
   }
 
   if (!user) return <Login />;
