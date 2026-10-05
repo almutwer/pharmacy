@@ -27,9 +27,17 @@ export const CATALOG_COLUMNS = [
 
 export const PRODUCT_COLUMNS = [
   { key: 'id', header: 'المعرف', width: 10, type: 'int', hint: 'اتركه فارغاً للأصناف الجديدة. وجود رقم يعني تحديث صنف موجود.' },
-  { key: 'name', header: 'اسم الصنف', width: 26, required: true, aliases: ['الاسم', 'الصنف', 'الاسم التجاري'], hint: 'إلزامي.' },
 
-  /* ===== أعمدة الإدخال السريع: الباركود والأسعار والكمية والصلاحية متجاورة ===== */
+  /* ===== أولاً: تفاصيل الدواء ===== */
+  { key: 'name', header: 'اسم الصنف', width: 26, required: true, aliases: ['الاسم', 'الصنف', 'الاسم التجاري'], hint: 'إلزامي.' },
+  { key: 'generic_name', header: 'الاسم العلمي', width: 22, aliases: ['المادة الفعالة'] },
+  { key: 'form', header: 'الشكل الصيدلاني', width: 15, aliases: ['الشكل'] },
+  { key: 'strength', header: 'التركيز', width: 13 },
+  { key: 'unit', header: 'الوحدة', width: 11, hint: 'الوحدة الكبرى: علبة، زجاجة…' },
+  { key: 'category', header: 'التصنيف', width: 20, aliases: ['الفئة'] },
+  { key: 'manufacturer', header: 'الشركة المصنعة', width: 18, aliases: ['الشركة'] },
+
+  /* ===== ثانياً: الباركود والأسعار والكمية والصلاحية ===== */
   { key: 'barcode', header: 'الباركود', width: 17, type: 'text', hint: 'يجب ألا يتكرر بين الأصناف.' },
   { key: 'purchase_price', header: 'سعر الشراء', width: 13, type: 'money', aliases: ['التكلفة'], hint: 'تكلفة الوحدة.' },
   { key: 'sale_price', header: 'سعر البيع', width: 13, type: 'money', aliases: ['السعر'], hint: 'سعر بيع الوحدة.' },
@@ -37,19 +45,13 @@ export const PRODUCT_COLUMNS = [
   { key: 'opening_expiry', header: 'تاريخ الصلاحية', width: 14, type: 'date', importOnly: true, aliases: ['الصلاحية', 'تاريخ الانتهاء'], hint: 'صلاحية الرصيد الافتتاحي بصيغة YYYY-MM-DD.' },
   { key: 'opening_batch_no', header: 'رقم الدفعة', width: 13, importOnly: true, hint: 'رقم دفعة الرصيد الافتتاحي (اختياري).' },
 
-  /* ===== الوحدات والبيع بالتجزئة ===== */
-  { key: 'unit', header: 'الوحدة', width: 11, hint: 'الوحدة الكبرى: علبة، زجاجة…' },
+  /* ===== ثالثاً: البيع بالتجزئة ===== */
   { key: 'sub_unit', header: 'الوحدة الصغرى', width: 13, hint: 'بمجرد كتابة اسم هنا (شريط، قرص…) يُفعَّل البيع بالتجزئة تلقائياً.' },
   { key: 'units_per_pack', header: 'عدد الوحدات بالعبوة', width: 16, type: 'number', aliases: ['عدد الاشرطة', 'التعبئة'], hint: 'مثال: 10 أشرطة داخل العلبة. مطلوب مع الوحدة الصغرى.' },
   { key: 'sub_unit_price', header: 'سعر الوحدة الصغرى', width: 15, type: 'money', hint: 'اتركه صفراً ليُحسب تلقائياً = سعر البيع ÷ عدد الوحدات.' },
   { key: 'allow_sub_unit', header: 'بيع بالتجزئة', width: 12, type: 'bool', hint: 'يُضبط تلقائياً عند تعبئة الوحدة الصغرى. اكتب «لا» لتعطيله صراحة.' },
 
-  /* ===== بيانات تعريفية ===== */
-  { key: 'generic_name', header: 'الاسم العلمي', width: 22, aliases: ['المادة الفعالة'] },
-  { key: 'form', header: 'الشكل الصيدلاني', width: 15, aliases: ['الشكل'] },
-  { key: 'strength', header: 'التركيز', width: 13 },
-  { key: 'category', header: 'التصنيف', width: 20, aliases: ['الفئة'] },
-  { key: 'manufacturer', header: 'الشركة المصنعة', width: 18, aliases: ['الشركة'] },
+  /* ===== رابعاً: إعدادات إضافية ===== */
   { key: 'reorder_level', header: 'حد إعادة الطلب', width: 14, type: 'int', aliases: ['حد النقص', 'الحد الأدنى'], hint: 'ينبّهك النظام عند نزول الرصيد تحته.' },
   { key: 'location', header: 'موقع التخزين', width: 14, aliases: ['الرف', 'الموقع'] },
   { key: 'requires_prescription', header: 'يحتاج وصفة', width: 12, type: 'bool', hint: 'نعم / لا' },
