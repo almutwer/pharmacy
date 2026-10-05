@@ -109,11 +109,27 @@ router.get(
   wrap((req, res) => {
     const q = String(req.query.q || '').trim();
     const like = `%${q}%`;
+    // field: all = الكل | name = الاسم التجاري | generic = المادة الفعالة
+    const field = ['name', 'generic'].includes(req.query.field) ? req.query.field : 'all';
+
+    let where;
+    let params;
+    if (field === 'name') {
+      where = '(p.name LIKE ? OR p.barcode = ?)';
+      params = [like, q];
+    } else if (field === 'generic') {
+      where = '(p.generic_name LIKE ? OR p.barcode = ?)';
+      params = [like, q];
+    } else {
+      where = '(p.name LIKE ? OR p.generic_name LIKE ? OR p.barcode = ?)';
+      params = [like, like, q];
+    }
+
     const rows = db.all(
       `SELECT ${STOCK_SELECT} FROM products p ${STOCK_JOIN}
-       WHERE p.active = 1 AND (p.name LIKE ? OR p.generic_name LIKE ? OR p.barcode = ?)
+       WHERE p.active = 1 AND ${where}
        ORDER BY (p.barcode = ?) DESC, p.name COLLATE NOCASE LIMIT 20`,
-      [like, like, q, q],
+      [...params, q],
     );
     res.json({ data: rows });
   }),
@@ -219,7 +235,35 @@ router.post(
       .map((c) => c.key);
 
     const result = {
-      total: rows.length, created: 0, updated: 0, skipped: 0, opening_units: 0, errors: [], matched, unknown,
+      total: rows.length, created: 0, updated: 0, skipped: 0, opening_units: 0,
+      retail_enabled: 0, errors: [], warnings: [], matched, unknown,
+    };
+
+    /**
+     * تفعيل البيع بالتجزئة تلقائياً عند تعبئة «الوحدة الصغرى» في الملف
+     * ما لم يكتب المستخدم «لا» صراحة في عمود «بيع بالتجزئة»
+     */
+    const applyRetail = (payload, row, existing, label) => {
+      const subUnit = String(payload.sub_unit ?? existing?.sub_unit ?? '').trim();
+      if (!subUnit) return;
+
+      const explicitOff = row.allow_sub_unit === 0;
+      const perPack = Number(payload.units_per_pack ?? existing?.units_per_pack ?? 1);
+
+      if (explicitOff) { payload.allow_sub_unit = 0; return; }
+
+      if (perPack > 1) {
+        if (!payload.allow_sub_unit) result.retail_enabled += 1;
+        payload.allow_sub_unit = 1;
+        payload.units_per_pack = perPack;
+      } else {
+        payload.allow_sub_unit = 0;
+        result.warnings.push({
+          row: row.__row,
+          name: label,
+          message: `كُتبت الوحدة الصغرى «${subUnit}» بدون «عدد الوحدات بالعبوة» — لم يُفعَّل البيع بالتجزئة`,
+        });
+      }
     };
 
     const run = () => {
@@ -247,6 +291,8 @@ router.post(
           for (const key of writable) {
             if (row[key] !== undefined && row[key] !== null) payload[key] = row[key];
           }
+
+          applyRetail(payload, row, existing, label);
 
           if (existing) {
             if (body.mode === 'insert') { result.skipped += 1; continue; }

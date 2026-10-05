@@ -6,7 +6,7 @@ import { z } from 'zod';
 import db from '../lib/db.js';
 import { requireAuth, requireRole } from '../lib/auth.js';
 import {
-  wrap, parse, notFound, HttpError, nextDocNumber, today, round, logActivity,
+  wrap, parse, notFound, HttpError, nextDocNumber, today, round, logActivity, nowStamp,
 } from '../lib/helpers.js';
 import { addBatch, recordMovement } from '../lib/stock.js';
 
@@ -68,6 +68,65 @@ router.get(
       WHERE ${whereSql} ORDER BY p.id DESC LIMIT ? OFFSET ?
     `, [...params, limit, (page - 1) * limit]);
     res.json({ data, total, page, limit, pages: Math.ceil(total / limit) || 1, summary: sums });
+  }),
+);
+
+/* ==================== مسودة فاتورة الشراء ==================== */
+/* تحفظ ما يكتبه المستخدم أولاً بأول، فلا يضيع الإدخال عند انقطاع التيار */
+
+/** قراءة مسودة المستخدم الحالي */
+router.get(
+  '/draft/current',
+  wrap((req, res) => {
+    const row = db.get('SELECT * FROM purchase_drafts WHERE user_id = ?', [req.user.id]);
+    if (!row) return res.json({ data: null });
+    let data = null;
+    try { data = JSON.parse(row.data); } catch { data = null; }
+    return res.json({
+      data,
+      items_count: row.items_count,
+      total: row.total,
+      updated_at: row.updated_at,
+    });
+  }),
+);
+
+/** حفظ/تحديث المسودة (يُستدعى تلقائياً أثناء الإدخال) */
+router.put(
+  '/draft/current',
+  requireRole('manager', 'pharmacist'),
+  wrap((req, res) => {
+    const body = parse(
+      z.object({
+        data: z.any(),
+        items_count: z.coerce.number().int().min(0).default(0),
+        total: z.coerce.number().default(0),
+      }),
+      req.body,
+    );
+    const payload = JSON.stringify(body.data ?? {});
+    if (payload.length > 2_000_000) throw new HttpError(413, 'حجم المسودة كبير جداً');
+
+    db.run(
+      `INSERT INTO purchase_drafts (user_id, data, items_count, total, updated_at)
+       VALUES (?, ?, ?, ?, datetime('now','localtime'))
+       ON CONFLICT(user_id) DO UPDATE SET
+         data = excluded.data,
+         items_count = excluded.items_count,
+         total = excluded.total,
+         updated_at = excluded.updated_at`,
+      [req.user.id, payload, body.items_count, body.total],
+    );
+    res.json({ ok: true, saved_at: nowStamp() });
+  }),
+);
+
+/** حذف المسودة (بعد الحفظ النهائي أو عند التجاهل) */
+router.delete(
+  '/draft/current',
+  wrap((req, res) => {
+    db.run('DELETE FROM purchase_drafts WHERE user_id = ?', [req.user.id]);
+    res.json({ ok: true });
   }),
 );
 

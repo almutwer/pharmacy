@@ -303,6 +303,15 @@ export function migrate({ seedCatalog = true } = {}) {
   CREATE INDEX IF NOT EXISTS idx_moves_date ON stock_movements(date);
 
   -- ===== سجل النشاط =====
+  CREATE TABLE IF NOT EXISTS purchase_drafts (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id    INTEGER NOT NULL UNIQUE REFERENCES users(id) ON DELETE CASCADE,
+    data       TEXT NOT NULL,              -- محتوى الفاتورة قيد الإدخال (JSON)
+    items_count INTEGER NOT NULL DEFAULT 0,
+    total      REAL NOT NULL DEFAULT 0,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+  );
+
   CREATE TABLE IF NOT EXISTS activity_log (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id    INTEGER REFERENCES users(id),

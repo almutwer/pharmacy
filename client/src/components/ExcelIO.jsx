@@ -205,6 +205,33 @@ function ImportModal({ cfg, onClose, onDone }) {
               </p>
             )}
 
+            {summary.warnings?.length > 0 && (
+              <div className="overflow-hidden rounded-xl border border-amber-200">
+                <div className="bg-amber-50 px-3 py-2 text-xs font-extrabold text-amber-700">
+                  <AlertTriangle className="ml-1 inline h-4 w-4" /> {summary.warnings.length} تنبيه
+                </div>
+                <div className="max-h-36 overflow-auto">
+                  <table className="w-full text-[11px]">
+                    <tbody>
+                      {summary.warnings.slice(0, 50).map((w, i) => (
+                        <tr key={`${w.row}-${i}`} className="border-t border-ink-100">
+                          <td className="p-2 num font-bold">{w.row}</td>
+                          <td className="p-2">{w.name}</td>
+                          <td className="p-2 text-amber-700">{w.message}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+
+            {summary.retail_enabled > 0 && (
+              <p className="rounded-lg bg-brand-50 px-3 py-2 text-[11px] font-bold text-brand-700">
+                تم تفعيل البيع بالتجزئة تلقائياً لـ {summary.retail_enabled} صنف (لوجود الوحدة الصغرى وعدد الوحدات).
+              </p>
+            )}
+
             {summary.unknown?.length > 0 && (
               <p className="rounded-lg bg-amber-50 px-3 py-2 text-[11px] text-amber-700">
                 أعمدة غير معروفة تم تجاهلها: {summary.unknown.join('، ')}

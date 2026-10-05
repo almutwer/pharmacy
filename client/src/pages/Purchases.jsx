@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import {
-  ShoppingBag, Plus, Search, Eye, Ban, Printer, Trash2, BookOpen, Boxes, Wallet, Filter,
+  ShoppingBag, Plus, Search, Eye, Ban, Printer, Trash2, BookOpen, Boxes, Wallet, Filter, FileClock, RotateCcw,
 } from 'lucide-react';
 import api from '../api.js';
 import { useApp } from '../context/AppContext.jsx';
@@ -8,7 +8,7 @@ import {
   PageHeader, Card, Table, Pagination, Badge, Field, Input, Select, Modal, useToast,
   StatCard, ConfirmDialog, Loading, EmptyState,
 } from '../components/ui.jsx';
-import { fmtNum, fmtDate, PAYMENT_METHODS, todayStr, monthStartStr, expiryState, cn } from '../lib/format.js';
+import { fmtNum, fmtDate, PAYMENT_METHODS, todayStr, monthStartStr, expiryState, cn, fmtDateTime } from '../lib/format.js';
 
 const emptyForm = () => ({
   supplier_id: '', supplier_invoice: '', date: todayStr(), discount: 0, tax: 0,
@@ -28,6 +28,8 @@ export default function Purchases() {
   const [detail, setDetail] = useState(null);
   const [cancelId, setCancelId] = useState(null);
   const [payFor, setPayFor] = useState(null);
+  const [draft, setDraft] = useState(null);          // مسودة محفوظة بانتظار الاستعادة
+  const [draftSavedAt, setDraftSavedAt] = useState(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -36,6 +38,35 @@ export default function Purchases() {
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => { api.get('/suppliers', { active: 1 }).then((r) => setSuppliers(r.data)); }, []);
+
+  // البحث عن مسودة لم تُحفظ (مثلاً بعد انقطاع التيار)
+  useEffect(() => {
+    if (!can('pharmacist')) return;
+    api.get('/purchases/draft/current')
+      .then((r) => { if (r.data && r.data.items?.length) setDraft(r); })
+      .catch(() => {});
+  }, [can]);
+
+  // حفظ تلقائي للمسودة أثناء الإدخال
+  useEffect(() => {
+    if (!form || !can('pharmacist')) return undefined;
+    const t = setTimeout(() => {
+      const itemsCount = form.items?.length || 0;
+      const total = (form.items || []).reduce(
+        (sum, i) => sum + (Number(i.qty) || 0) * (Number(i.unit_cost) || 0) - (Number(i.discount) || 0), 0,
+      );
+      api.put('/purchases/draft/current', { data: form, items_count: itemsCount, total })
+        .then(() => setDraftSavedAt(new Date()))
+        .catch(() => {});
+    }, 1200);
+    return () => clearTimeout(t);
+  }, [form, can]);
+
+  const clearDraft = useCallback(async () => {
+    setDraft(null);
+    setDraftSavedAt(null);
+    try { await api.del('/purchases/draft/current'); } catch { /* تجاهل */ }
+  }, []);
 
   const save = async () => {
     if (!form.items.length) { toast.error('أضف صنفاً واحداً على الأقل'); return; }
@@ -56,6 +87,7 @@ export default function Purchases() {
       const r = await api.post('/purchases', payload);
       toast.success(`تم حفظ فاتورة الشراء ${r.invoice_no} وإضافة الأصناف للمخزون`);
       setForm(null);
+      await clearDraft();
       load();
     } catch (err) { toast.error(err.message); }
   };
@@ -84,6 +116,29 @@ export default function Purchases() {
         title="المشتريات" subtitle="فواتير التوريد من الموردين — تُضاف الكميات للمخزون تلقائياً" icon={ShoppingBag}
         actions={<button className="btn-primary" onClick={() => setForm(emptyForm())}><Plus className="h-4 w-4" /> فاتورة شراء جديدة</button>}
       />
+
+      {draft && !form && (
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-300 bg-amber-50 p-4">
+          <div className="flex items-start gap-2 text-sm text-amber-900">
+            <FileClock className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
+            <div>
+              <p className="font-extrabold">لديك فاتورة شراء لم تُحفظ</p>
+              <p className="text-xs">
+                {draft.items_count} صنف بقيمة {fmtNum(draft.total)} {currency} — آخر حفظ تلقائي: {fmtDateTime(draft.updated_at)}
+              </p>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            <button className="btn-ghost btn-sm" onClick={clearDraft}>تجاهل وحذف</button>
+            <button
+              className="btn-primary btn-sm"
+              onClick={() => { setForm({ ...emptyForm(), ...draft.data }); setDraft(null); }}
+            >
+              <RotateCcw className="h-4 w-4" /> استعادة ومتابعة الإدخال
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="mb-4 grid grid-cols-2 gap-4 lg:grid-cols-3">
         <StatCard label="إجمالي المشتريات" value={`${fmtNum(res.summary?.total_amount)} ${currency}`} sub={`${res.total} فاتورة`} icon={ShoppingBag} tone="brand" />
@@ -149,6 +204,7 @@ export default function Purchases() {
       {form && (
         <PurchaseForm
           form={form} setForm={setForm} suppliers={suppliers} currency={currency}
+          savedAt={draftSavedAt}
           onClose={() => setForm(null)} onSave={save}
         />
       )}
@@ -218,7 +274,7 @@ export default function Purchases() {
 }
 
 /* ================== نموذج فاتورة الشراء ================== */
-function PurchaseForm({ form, setForm, suppliers, currency, onClose, onSave }) {
+function PurchaseForm({ form, setForm, suppliers, currency, onClose, onSave, savedAt }) {
   const [picker, setPicker] = useState(false);
 
   const addItem = (item) => {
@@ -236,7 +292,9 @@ function PurchaseForm({ form, setForm, suppliers, currency, onClose, onSave }) {
   return (
     <Modal
       open onClose={onClose} size="xl" title="فاتورة شراء جديدة"
-      subtitle="أضف الأصناف من المخزون أو مباشرة من دليل الأدوية"
+      subtitle={savedAt
+        ? `محفوظة تلقائياً كمسودة ${savedAt.toLocaleTimeString('ar-EG-u-nu-latn', { hour: '2-digit', minute: '2-digit', second: '2-digit' })} — لن تفقد إدخالك عند انقطاع التيار`
+        : 'أضف الأصناف من المخزون أو مباشرة من دليل الأدوية — يحفظ النظام إدخالك تلقائياً'}
       footer={<>
         <button className="btn-ghost" onClick={onClose}>إلغاء</button>
         <button className="btn-primary" onClick={onSave}>حفظ الفاتورة وترحيلها للمخزون</button>

@@ -18,6 +18,7 @@ export default function POS() {
   const searchRef = useRef(null);
 
   const [query, setQuery] = useState('');
+  const [searchField, setSearchField] = useState('all');
   const [results, setResults] = useState([]);
   const [searching, setSearching] = useState(false);
   const [cart, setCart] = useState([]);
@@ -41,12 +42,12 @@ export default function POS() {
     if (!query.trim()) { setResults([]); return undefined; }
     setSearching(true);
     const t = setTimeout(() => {
-      api.get('/products/search', { q: query.trim() })
+      api.get('/products/search', { q: query.trim(), field: searchField })
         .then((r) => setResults(r.data))
         .finally(() => setSearching(false));
     }, 220);
     return () => clearTimeout(t);
-  }, [query]);
+  }, [query, searchField]);
 
   /** الحد الأقصى المتاح لبند حسب وحدة بيعه */
   const maxQty = (line) => (line.unit_mode === 'sub'
@@ -185,6 +186,30 @@ export default function POS() {
             <ScanBarcode className="absolute left-3.5 top-1/2 h-5 w-5 -translate-y-1/2 text-ink-300" />
           </div>
 
+          {/* فلتر مجال البحث */}
+          <div className="mt-2.5 flex items-center gap-2">
+            <span className="text-[11px] font-bold text-ink-400">البحث في:</span>
+            <div className="flex overflow-hidden rounded-xl border border-ink-200 text-[11px] font-extrabold">
+              {[
+                { v: 'all', label: 'الكل' },
+                { v: 'name', label: 'الاسم التجاري' },
+                { v: 'generic', label: 'المادة الفعالة' },
+              ].map((o) => (
+                <button
+                  key={o.v}
+                  className={cn(
+                    'px-3 py-1.5 transition',
+                    searchField === o.v ? 'bg-brand-600 text-white' : 'text-ink-500 hover:bg-ink-50',
+                  )}
+                  onClick={() => { setSearchField(o.v); searchRef.current?.focus(); }}
+                >
+                  {o.label}
+                </button>
+              ))}
+            </div>
+            <span className="text-[10px] text-ink-300">الباركود يعمل في كل الأوضاع</span>
+          </div>
+
           {query && (
             <div className="mt-3 max-h-[46vh] space-y-1.5 overflow-y-auto">
               {!searching && results.length === 0 && (
@@ -201,7 +226,7 @@ export default function POS() {
                     <button className="min-w-0 flex-1 text-right" onClick={() => addToCart(p, 'pack')}>
                       <p className="truncate font-extrabold text-ink-900">{p.name} <span className="text-xs font-bold text-ink-400">{p.strength || ''}</span></p>
                       <p className="truncate text-[11px] text-ink-400">
-                        {p.generic_name || '—'} · {p.form || ''}
+                        <span className={cn(searchField === 'generic' && 'font-extrabold text-brand-600')}>{p.generic_name || '—'}</span> · {p.form || ''}
                         {retail && <span className="font-bold text-brand-600"> · العبوة {fmtInt(p.units_per_pack)} {p.sub_unit}</span>}
                       </p>
                     </button>
