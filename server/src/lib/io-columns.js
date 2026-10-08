@@ -1,0 +1,85 @@
+/**
+ * تعريف أعمدة ملفات Excel للتصدير والاستيراد
+ * readOnly  : يُصدَّر فقط ويُتجاهل عند الاستيراد
+ * importOnly: يظهر في القالب فقط (لا يُصدَّر مع البيانات)
+ */
+
+export const CATALOG_COLUMNS = [
+  { key: 'id', header: 'المعرف', width: 10, type: 'int', hint: 'اتركه فارغاً للأدوية الجديدة. وجود رقم يعني تحديث دواء موجود.' },
+  { key: 'trade_name', header: 'الاسم التجاري', width: 26, required: true, aliases: ['الاسم', 'اسم الدواء', 'الصنف'], hint: 'إلزامي — اسم الدواء كما يُعرف تجارياً.' },
+  { key: 'generic_name', header: 'الاسم العلمي', width: 24, aliases: ['المادة الفعالة', 'المادة الفعّالة'], hint: 'المادة الفعالة.' },
+  { key: 'form', header: 'الشكل الصيدلاني', width: 16, aliases: ['الشكل'], hint: 'أقراص، شراب، كبسولات، حقن…' },
+  { key: 'strength', header: 'التركيز', width: 14, aliases: ['الجرعة'], hint: 'مثال: 500 مجم' },
+  { key: 'unit', header: 'الوحدة', width: 12, hint: 'علبة، زجاجة، شريط…' },
+  { key: 'category', header: 'التصنيف', width: 22, aliases: ['الفئة'], hint: 'التصنيف الدوائي.' },
+  { key: 'manufacturer', header: 'الشركة المصنعة', width: 20, aliases: ['الشركة', 'المصنع'], hint: 'اسم الشركة المنتجة.' },
+  { key: 'country', header: 'بلد المنشأ', width: 16, aliases: ['البلد'], hint: 'بلد التصنيع.' },
+  { key: 'barcode', header: 'الباركود', width: 18, type: 'text', hint: 'يجب ألا يتكرر بين الأدوية.' },
+  { key: 'atc_code', header: 'كود ATC', width: 12, hint: 'التصنيف الدوائي العالمي (اختياري).' },
+  { key: 'default_purchase_price', header: 'سعر الشراء', width: 13, type: 'money', aliases: ['التكلفة', 'سعر التكلفة'], hint: 'السعر الافتراضي عند الشراء.' },
+  { key: 'default_sale_price', header: 'سعر البيع', width: 13, type: 'money', aliases: ['السعر'], hint: 'السعر الافتراضي عند البيع.' },
+  { key: 'requires_prescription', header: 'يحتاج وصفة', width: 12, type: 'bool', hint: 'نعم / لا' },
+  { key: 'storage_conditions', header: 'ظروف التخزين', width: 20, hint: 'مثال: يحفظ في الثلاجة.' },
+  { key: 'notes', header: 'ملاحظات', width: 24 },
+  { key: 'active', header: 'الحالة', width: 10, type: 'bool', hint: 'نعم = نشط، لا = موقوف' },
+  { key: 'in_inventory', header: 'مضاف للمخزون', width: 13, type: 'bool', readOnly: true, hint: 'حقل معلوماتي فقط — يُتجاهل عند الاستيراد.' },
+];
+
+export const PRODUCT_COLUMNS = [
+  /* ===== الترتيب المعتمد للإدخال ===== */
+  { key: 'name', header: 'الاسم', width: 26, required: true, aliases: ['اسم الصنف', 'الصنف', 'الاسم التجاري'], hint: 'إلزامي.' },
+  { key: 'generic_name', header: 'الاسم العلمي', width: 22, aliases: ['المادة الفعالة'] },
+  { key: 'strength', header: 'التركيز', width: 13, aliases: ['الجرعة'] },
+  { key: 'form', header: 'الشكل الصيدلاني', width: 15, aliases: ['الشكل'] },
+  { key: 'unit', header: 'الوحدة', width: 11, aliases: ['الوحدة الكبرى'], hint: 'وحدة البيع الأساسية: علبة، زجاجة…' },
+  { key: 'sub_unit', header: 'الوحدة الصغرى', width: 13, hint: 'بمجرد كتابة اسم هنا (شريط، قرص…) يُفعَّل البيع بالتجزئة تلقائياً.' },
+  { key: 'units_per_pack', header: 'عدد الوحدات الصغرى', width: 16, type: 'number', aliases: ['عدد الوحدات بالعبوة', 'عدد الاشرطة', 'التعبئة'], hint: 'كم وحدة صغرى داخل الوحدة الكبرى. مثال: 10 أشرطة في العلبة.' },
+  { key: 'opening_qty', header: 'الكمية', width: 11, type: 'number', virtual: true, aliases: ['رصيد افتتاحي', 'الكمية المدخلة', 'الكمية المتوفرة'], hint: 'يُصدَّر بالرصيد الحالي. اتركه كما هو فلا يتغير شيء، أو عدّله ليُضبط الرصيد عليه، أو اكتب صفراً لتصفير الصنف، أو امسحه كلياً ليُتجاهل.' },
+  { key: 'sale_price', header: 'سعر البيع', width: 13, type: 'money', aliases: ['السعر'], hint: 'سعر بيع الوحدة الكبرى.' },
+  { key: 'purchase_price', header: 'سعر الشراء', width: 13, type: 'money', aliases: ['التكلفة'], hint: 'تكلفة الوحدة الكبرى.' },
+  { key: 'barcode', header: 'الباركود', width: 17, type: 'text', hint: 'يجب ألا يتكرر بين الأصناف.' },
+
+  /* ===== بيانات الدفعة المدخلة مع الكمية ===== */
+  { key: 'opening_expiry', header: 'تاريخ الصلاحية', width: 14, type: 'date', importOnly: true, virtual: true, aliases: ['الصلاحية', 'تاريخ الانتهاء'], hint: 'صلاحية الكمية المدخلة بصيغة YYYY-MM-DD.' },
+  { key: 'opening_batch_no', header: 'رقم الدفعة', width: 13, importOnly: true, virtual: true, hint: 'رقم دفعة الكمية المدخلة (اختياري).' },
+
+  /* ===== تفاصيل البيع بالتجزئة ===== */
+  { key: 'sub_unit_price', header: 'سعر الوحدة الصغرى', width: 15, type: 'money', hint: 'اتركه صفراً ليُحسب تلقائياً = سعر البيع ÷ عدد الوحدات الصغرى.' },
+  { key: 'allow_sub_unit', header: 'بيع بالتجزئة', width: 12, type: 'bool', hint: 'يُضبط تلقائياً عند تعبئة الوحدة الصغرى. اكتب «لا» لتعطيله صراحة.' },
+
+  /* ===== بيانات إضافية ===== */
+  { key: 'category', header: 'التصنيف', width: 20, aliases: ['الفئة'] },
+  { key: 'manufacturer', header: 'الشركة المصنعة', width: 18, aliases: ['الشركة'] },
+  { key: 'reorder_level', header: 'حد إعادة الطلب', width: 14, type: 'int', aliases: ['حد النقص', 'الحد الأدنى'], hint: 'ينبّهك النظام عند نزول الرصيد تحته.' },
+  { key: 'location', header: 'موقع التخزين', width: 14, aliases: ['الرف', 'الموقع'] },
+  { key: 'requires_prescription', header: 'يحتاج وصفة', width: 12, type: 'bool', hint: 'نعم / لا' },
+  { key: 'active', header: 'الحالة', width: 10, type: 'bool', hint: 'نعم = نشط، لا = موقوف' },
+  { key: 'notes', header: 'ملاحظات', width: 22 },
+  { key: 'id', header: 'المعرف', width: 10, type: 'int', hint: 'رقم الصنف في النظام. اتركه فارغاً للأصناف الجديدة، ولا تغيّره في ملف التصدير.' },
+
+  /* ===== أعمدة معلوماتية عند التصدير فقط ===== */
+  { key: 'stock_cost_value', header: 'قيمة التكلفة', width: 14, type: 'money', readOnly: true, hint: 'حقل معلوماتي فقط.' },
+  { key: 'nearest_expiry', header: 'أقرب صلاحية', width: 14, type: 'date', readOnly: true, hint: 'حقل معلوماتي فقط — لتعديل الصلاحية استخدم ملف الدفعات.' },
+  { key: 'catalog_name', header: 'مرتبط بالدليل', width: 18, readOnly: true, hint: 'اسم الدواء المرتبط في دليل الأدوية.' },
+];
+
+/** أعمدة التصدير (كل شيء ما عدا خانات الاستيراد فقط) */
+export const exportColumns = (cols) => cols.filter((c) => !c.importOnly);
+
+/** أعمدة القالب (كل شيء ما عدا الحقول المحسوبة) */
+export const templateColumns = (cols) => cols.filter((c) => !c.readOnly);
+
+/** الأعمدة التي يمكن كتابتها فعلياً في قاعدة البيانات (دون الحقول الافتراضية) */
+export const writableColumns = (cols) => cols.filter((c) => !c.readOnly && !c.virtual && c.key !== 'id');
+
+/** أعمدة ملف الدفعات (تعديل تواريخ الصلاحية والأسعار بعد الإنشاء) */
+export const BATCH_COLUMNS = [
+  { key: 'id', header: 'معرف الدفعة', width: 12, type: 'int', required: true, hint: 'إلزامي — لا تغيّره. هو مفتاح تحديث الدفعة.' },
+  { key: 'product_name', header: 'الصنف', width: 28, readOnly: true, hint: 'للاطلاع فقط.' },
+  { key: 'batch_no', header: 'رقم الدفعة', width: 16, hint: 'قابل للتعديل.' },
+  { key: 'expiry_date', header: 'تاريخ الصلاحية', width: 15, type: 'date', aliases: ['الصلاحية', 'تاريخ الانتهاء'], hint: 'قابل للتعديل — بصيغة YYYY-MM-DD.' },
+  { key: 'cost_price', header: 'سعر التكلفة', width: 14, type: 'money', aliases: ['التكلفة'], hint: 'تكلفة الوحدة في هذه الدفعة.' },
+  { key: 'sale_price', header: 'سعر البيع', width: 14, type: 'money', hint: 'سعر بيع هذه الدفعة (اختياري).' },
+  { key: 'qty_available', header: 'الكمية المتاحة', width: 14, type: 'number', readOnly: true, hint: 'لتعديل الكمية استخدم «تسوية مخزنية» حتى تبقى الحركة موثّقة.' },
+  { key: 'supplier_name', header: 'المورد', width: 18, readOnly: true, hint: 'للاطلاع فقط.' },
+];

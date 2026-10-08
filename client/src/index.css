@@ -1,0 +1,62 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html, body, #root { height: 100%; }
+  body {
+    @apply bg-ink-50 text-ink-900 font-sans antialiased;
+  }
+  * { scrollbar-width: thin; scrollbar-color: #cbd5e1 transparent; }
+  *::-webkit-scrollbar { width: 8px; height: 8px; }
+  *::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 8px; }
+  *::-webkit-scrollbar-track { background: transparent; }
+  input[type="number"]::-webkit-outer-spin-button,
+  input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  input[type="number"] { -moz-appearance: textfield; }
+}
+
+@layer components {
+  .card { @apply bg-white rounded-2xl shadow-card border border-ink-100; }
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold
+           transition-all duration-150 disabled:opacity-50 disabled:cursor-not-allowed select-none;
+  }
+  .btn-primary { @apply btn bg-brand-600 text-white hover:bg-brand-700 active:scale-[.98] shadow-sm shadow-brand-600/20; }
+  .btn-ghost { @apply btn bg-ink-100 text-ink-700 hover:bg-ink-200; }
+  .btn-outline { @apply btn border border-ink-200 bg-white text-ink-700 hover:bg-ink-50; }
+  .btn-danger { @apply btn bg-rose-600 text-white hover:bg-rose-700; }
+  .btn-sm { @apply px-2.5 py-1.5 text-xs rounded-lg; }
+  .input {
+    @apply w-full rounded-xl border border-ink-200 bg-white px-3.5 py-2.5 text-sm text-ink-900
+           placeholder:text-ink-400 outline-none transition
+           focus:border-brand-500 focus:ring-4 focus:ring-brand-500/10 disabled:bg-ink-50;
+  }
+  .label { @apply block text-xs font-bold text-ink-600 mb-1.5; }
+  .badge { @apply inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-[11px] font-bold; }
+  .table-wrap { @apply overflow-x-auto rounded-2xl border border-ink-100 bg-white; }
+  .tbl { @apply w-full text-sm text-right border-collapse; }
+  .tbl thead th {
+    @apply bg-ink-50 px-3.5 py-3 text-xs font-extrabold text-ink-500 whitespace-nowrap border-b border-ink-100;
+  }
+  .tbl tbody td { @apply px-3.5 py-3 border-b border-ink-50 whitespace-nowrap; }
+  .tbl tbody tr:hover { @apply bg-brand-50/40; }
+  .nav-link {
+    @apply flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-sm font-bold text-ink-300
+           transition hover:bg-white/10 hover:text-white;
+  }
+  .nav-link-active { @apply bg-brand-600 text-white shadow-lg shadow-brand-900/40 hover:bg-brand-600 hover:text-white; }
+  .num { font-variant-numeric: tabular-nums; }
+}
+
+@media print {
+  body { background: #fff; }
+  .no-print, .no-print * { display: none !important; }
+  body:has(.print-area) * { visibility: hidden; }
+  body:has(.print-area) .print-area,
+  body:has(.print-area) .print-area * { visibility: visible; }
+  body:has(.print-area) .print-area {
+    position: absolute; top: 0; right: 0; width: 100%; margin: 0; padding: 0;
+  }
+  @page { margin: 10mm; }
+}
