@@ -201,7 +201,17 @@ function ImportModal({ cfg, onClose, onDone }) {
 
             {summary.opening_units > 0 && (
               <p className="rounded-lg bg-brand-50 px-3 py-2 text-[11px] font-bold text-brand-700">
-                سيتم تسجيل رصيد افتتاحي بمقدار {summary.opening_units} وحدة للأصناف الجديدة.
+                رصيد افتتاحي للأصناف الجديدة: {summary.opening_units} وحدة.
+              </p>
+            )}
+
+            {summary.stock_adjusted > 0 && (
+              <p className="rounded-lg bg-sky-50 px-3 py-2 text-[11px] font-bold leading-6 text-sky-800">
+                تسوية أرصدة: {summary.stock_adjusted} صنف موجود سيتغير رصيده
+                {summary.stock_in > 0 && <> — إضافة {summary.stock_in} وحدة</>}
+                {summary.stock_out > 0 && <> — خصم {summary.stock_out} وحدة</>}
+                <br />
+                <span className="font-normal">كل تغيير يُسجَّل في حركات المخزون باسمك.</span>
               </p>
             )}
 

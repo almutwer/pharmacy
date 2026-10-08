@@ -41,7 +41,7 @@ export const PRODUCT_COLUMNS = [
   { key: 'barcode', header: 'الباركود', width: 17, type: 'text', hint: 'يجب ألا يتكرر بين الأصناف.' },
   { key: 'purchase_price', header: 'سعر الشراء', width: 13, type: 'money', aliases: ['التكلفة'], hint: 'تكلفة الوحدة.' },
   { key: 'sale_price', header: 'سعر البيع', width: 13, type: 'money', aliases: ['السعر'], hint: 'سعر بيع الوحدة.' },
-  { key: 'opening_qty', header: 'الكمية', width: 11, type: 'number', importOnly: true, aliases: ['رصيد افتتاحي', 'الكمية المدخلة'], hint: 'رصيد افتتاحي يُسجَّل كدفعة للأصناف الجديدة فقط (يُتجاهل عند تحديث صنف موجود).' },
+  { key: 'opening_qty', header: 'الكمية', width: 11, type: 'number', importOnly: true, aliases: ['رصيد افتتاحي', 'الكمية المدخلة'], hint: 'الرصيد المطلوب للصنف. خلية فارغة = لا تغيير. رقم = يضبط الرصيد عليه (زيادة أو نقصاً). صفر = تصفير رصيد الصنف.' },
   { key: 'opening_expiry', header: 'تاريخ الصلاحية', width: 14, type: 'date', importOnly: true, aliases: ['الصلاحية', 'تاريخ الانتهاء'], hint: 'صلاحية الرصيد الافتتاحي بصيغة YYYY-MM-DD.' },
   { key: 'opening_batch_no', header: 'رقم الدفعة', width: 13, importOnly: true, hint: 'رقم دفعة الرصيد الافتتاحي (اختياري).' },
 

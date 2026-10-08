@@ -5,8 +5,8 @@ import { Router } from 'express';
 import { z } from 'zod';
 import db from '../lib/db.js';
 import { requireAuth, requireRole } from '../lib/auth.js';
-import { wrap, parse, notFound, HttpError, nowStamp, logActivity, getSettingNumber } from '../lib/helpers.js';
-import { addBatch, recordMovement } from '../lib/stock.js';
+import { wrap, parse, notFound, HttpError, nowStamp, logActivity, getSettingNumber, round } from '../lib/helpers.js';
+import { addBatch, recordMovement, allocateFEFO, deductBatch, productStock } from '../lib/stock.js';
 import { createWorkbook, addSheet, addGuideSheet, sendWorkbook, readSheetRows, decodeUpload } from '../lib/excel.js';
 import { PRODUCT_COLUMNS, exportColumns, templateColumns, writableColumns } from '../lib/io-columns.js';
 
@@ -204,7 +204,8 @@ router.get(
         '١) اكتب الأصناف في ورقة «المخزون» تحت العناوين الملوّنة، ولا تغيّر أسماء الأعمدة.',
         '٢) احذف صف المثال قبل الرفع.',
         '٣) عمود «المعرف» فارغ = صنف جديد، وبرقم موجود = تحديث بيانات الصنف.',
-        '٤) «رصيد افتتاحي» يُسجَّل كدفعة جديدة للأصناف الجديدة فقط، ويُتجاهل عند تحديث صنف موجود — لتعديل أرصدة صنف قائم استخدم «تسوية مخزنية».',
+        '٤) عمود «الكمية» يضبط رصيد الصنف: اتركه فارغاً فلا يتغير شيء، أو اكتب الرصيد المطلوب فيُسجَّل الفرق تلقائياً (زيادة أو نقصاً)، أو اكتب صفراً لتصفير رصيد الصنف.',
+        '   كل تغيير في الرصيد يُسجَّل في حركات المخزون باسمك مع ذكر الرصيد قبل وبعد.',
         '٥) الكميات والأسعار أرقام فقط، والتواريخ بصيغة YYYY-MM-DD.',
         '٦) يمكنك أيضاً رفع ملف CSV بنفس العناوين.',
       ],
@@ -236,7 +237,59 @@ router.post(
 
     const result = {
       total: rows.length, created: 0, updated: 0, skipped: 0, opening_units: 0,
-      retail_enabled: 0, errors: [], warnings: [], matched, unknown,
+      retail_enabled: 0, stock_adjusted: 0, stock_in: 0, stock_out: 0,
+      errors: [], warnings: [], matched, unknown,
+    };
+
+    /**
+     * ضبط رصيد صنف موجود ليطابق «الكمية» المكتوبة في الملف
+     *  • خلية فارغة  → لا تغيير
+     *  • رقم أكبر من الرصيد → إدخال الفرق كدفعة جديدة
+     *  • رقم أقل من الرصيد  → خصم الفرق بنظام FEFO
+     *  • صفر → تصفير رصيد الصنف
+     */
+    const syncStock = (product, row) => {
+      const target = round(Number(row.opening_qty), 3);
+      if (target < 0) throw new Error('الكمية لا يمكن أن تكون رقماً سالباً');
+
+      const current = round(productStock(product.id), 3);
+      const diff = round(target - current, 3);
+      if (diff === 0) return;
+
+      result.stock_adjusted += 1;
+
+      if (diff > 0) {
+        result.stock_in = round(result.stock_in + diff, 3);
+        if (body.dry_run) return;
+        const cost = Number(row.purchase_price ?? product.purchase_price) || 0;
+        const batchId = addBatch({
+          productId: product.id,
+          batchNo: row.opening_batch_no || 'IMPORT',
+          expiryDate: row.opening_expiry || null,
+          qty: diff,
+          costPrice: cost,
+          salePrice: Number(row.sale_price ?? product.sale_price) || 0,
+        });
+        recordMovement({
+          productId: product.id, batchId, type: 'adjust_in', qty: diff,
+          unitCost: cost, refType: 'import',
+          note: `تسوية رصيد من ملف Excel (${current} ← ${target})`, userId: req.user.id,
+        });
+        return;
+      }
+
+      // الرصيد المطلوب أقل من الحالي → خصم الفرق
+      const shortage = round(-diff, 3);
+      result.stock_out = round(result.stock_out + shortage, 3);
+      if (body.dry_run) return;
+      for (const alloc of allocateFEFO(product.id, shortage)) {
+        deductBatch(alloc.batchId, alloc.qty);
+        recordMovement({
+          productId: product.id, batchId: alloc.batchId, type: 'adjust_out', qty: -alloc.qty,
+          unitCost: alloc.costPrice, refType: 'import',
+          note: `تسوية رصيد من ملف Excel (${current} ← ${target})`, userId: req.user.id,
+        });
+      }
     };
 
     /**
@@ -296,10 +349,13 @@ router.post(
 
           if (existing) {
             if (body.mode === 'insert') { result.skipped += 1; continue; }
-            if (!Object.keys(payload).length) { result.skipped += 1; continue; }
-            if (!body.dry_run) {
+            // عمود «الكمية»: فارغ = تجاهل، وأي رقم (ومنه الصفر) = ضبط الرصيد عليه
+            const hasQty = row.opening_qty !== undefined && row.opening_qty !== null && row.opening_qty !== '';
+            if (!Object.keys(payload).length && !hasQty) { result.skipped += 1; continue; }
+            if (Object.keys(payload).length && !body.dry_run) {
               db.update('products', { ...parse(schema.partial(), payload), updated_at: nowStamp() }, 'id = ?', [existing.id]);
             }
+            if (hasQty) syncStock(existing, row);
             result.updated += 1;
           } else {
             const data = parse(schema, payload);
