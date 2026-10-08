@@ -34,14 +34,14 @@ export const PRODUCT_COLUMNS = [
   { key: 'unit', header: 'الوحدة', width: 11, aliases: ['الوحدة الكبرى'], hint: 'وحدة البيع الأساسية: علبة، زجاجة…' },
   { key: 'sub_unit', header: 'الوحدة الصغرى', width: 13, hint: 'بمجرد كتابة اسم هنا (شريط، قرص…) يُفعَّل البيع بالتجزئة تلقائياً.' },
   { key: 'units_per_pack', header: 'عدد الوحدات الصغرى', width: 16, type: 'number', aliases: ['عدد الوحدات بالعبوة', 'عدد الاشرطة', 'التعبئة'], hint: 'كم وحدة صغرى داخل الوحدة الكبرى. مثال: 10 أشرطة في العلبة.' },
-  { key: 'opening_qty', header: 'الكمية', width: 11, type: 'number', importOnly: true, aliases: ['رصيد افتتاحي', 'الكمية المدخلة'], hint: 'الرصيد المطلوب للصنف. خلية فارغة = لا تغيير. رقم = يضبط الرصيد عليه (زيادة أو نقصاً). صفر = تصفير رصيد الصنف.' },
+  { key: 'opening_qty', header: 'الكمية', width: 11, type: 'number', virtual: true, aliases: ['رصيد افتتاحي', 'الكمية المدخلة', 'الكمية المتوفرة'], hint: 'يُصدَّر بالرصيد الحالي. اتركه كما هو فلا يتغير شيء، أو عدّله ليُضبط الرصيد عليه، أو اكتب صفراً لتصفير الصنف، أو امسحه كلياً ليُتجاهل.' },
   { key: 'sale_price', header: 'سعر البيع', width: 13, type: 'money', aliases: ['السعر'], hint: 'سعر بيع الوحدة الكبرى.' },
   { key: 'purchase_price', header: 'سعر الشراء', width: 13, type: 'money', aliases: ['التكلفة'], hint: 'تكلفة الوحدة الكبرى.' },
   { key: 'barcode', header: 'الباركود', width: 17, type: 'text', hint: 'يجب ألا يتكرر بين الأصناف.' },
 
   /* ===== بيانات الدفعة المدخلة مع الكمية ===== */
-  { key: 'opening_expiry', header: 'تاريخ الصلاحية', width: 14, type: 'date', importOnly: true, aliases: ['الصلاحية', 'تاريخ الانتهاء'], hint: 'صلاحية الكمية المدخلة بصيغة YYYY-MM-DD.' },
-  { key: 'opening_batch_no', header: 'رقم الدفعة', width: 13, importOnly: true, hint: 'رقم دفعة الكمية المدخلة (اختياري).' },
+  { key: 'opening_expiry', header: 'تاريخ الصلاحية', width: 14, type: 'date', importOnly: true, virtual: true, aliases: ['الصلاحية', 'تاريخ الانتهاء'], hint: 'صلاحية الكمية المدخلة بصيغة YYYY-MM-DD.' },
+  { key: 'opening_batch_no', header: 'رقم الدفعة', width: 13, importOnly: true, virtual: true, hint: 'رقم دفعة الكمية المدخلة (اختياري).' },
 
   /* ===== تفاصيل البيع بالتجزئة ===== */
   { key: 'sub_unit_price', header: 'سعر الوحدة الصغرى', width: 15, type: 'money', hint: 'اتركه صفراً ليُحسب تلقائياً = سعر البيع ÷ عدد الوحدات الصغرى.' },
@@ -58,7 +58,6 @@ export const PRODUCT_COLUMNS = [
   { key: 'id', header: 'المعرف', width: 10, type: 'int', hint: 'رقم الصنف في النظام. اتركه فارغاً للأصناف الجديدة، ولا تغيّره في ملف التصدير.' },
 
   /* ===== أعمدة معلوماتية عند التصدير فقط ===== */
-  { key: 'stock_qty', header: 'الكمية المتوفرة', width: 14, type: 'number', readOnly: true, hint: 'رصيد فعلي محسوب — للعرض فقط ويُتجاهل عند الاستيراد. لتعديل الرصيد اكتبه في عمود «الكمية».' },
   { key: 'stock_cost_value', header: 'قيمة التكلفة', width: 14, type: 'money', readOnly: true, hint: 'حقل معلوماتي فقط.' },
   { key: 'nearest_expiry', header: 'أقرب صلاحية', width: 14, type: 'date', readOnly: true, hint: 'حقل معلوماتي فقط — لتعديل الصلاحية استخدم ملف الدفعات.' },
   { key: 'catalog_name', header: 'مرتبط بالدليل', width: 18, readOnly: true, hint: 'اسم الدواء المرتبط في دليل الأدوية.' },
@@ -70,8 +69,8 @@ export const exportColumns = (cols) => cols.filter((c) => !c.importOnly);
 /** أعمدة القالب (كل شيء ما عدا الحقول المحسوبة) */
 export const templateColumns = (cols) => cols.filter((c) => !c.readOnly);
 
-/** الأعمدة التي يمكن كتابتها فعلياً في قاعدة البيانات */
-export const writableColumns = (cols) => cols.filter((c) => !c.readOnly && c.key !== 'id');
+/** الأعمدة التي يمكن كتابتها فعلياً في قاعدة البيانات (دون الحقول الافتراضية) */
+export const writableColumns = (cols) => cols.filter((c) => !c.readOnly && !c.virtual && c.key !== 'id');
 
 /** أعمدة ملف الدفعات (تعديل تواريخ الصلاحية والأسعار بعد الإنشاء) */
 export const BATCH_COLUMNS = [

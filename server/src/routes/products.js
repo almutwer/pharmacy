@@ -169,9 +169,11 @@ router.get(
     addSheet(wb, {
       name: 'المخزون',
       title: 'جرد أصناف المخزون',
-      note: `عدد الأصناف: ${rows.length} — إجمالي الكميات: ${totalQty} — قيمة التكلفة: ${totalCost.toFixed(2)} — بتاريخ ${nowStamp()}`,
+      note: `عدد الأصناف: ${rows.length} — إجمالي الكميات: ${totalQty} — قيمة التكلفة: ${totalCost.toFixed(2)} — بتاريخ ${nowStamp()}`
+        + ' | عمود «الكمية» يحمل الرصيد الحالي: عدّله ثم أعد رفع الملف لضبط الأرصدة',
       columns: exportColumns(PRODUCT_COLUMNS),
-      rows,
+      // «الكمية» عمود افتراضي يُملأ بالرصيد الحالي ليُعدَّل ويُعاد رفعه
+      rows: rows.map((r) => ({ ...r, opening_qty: r.stock_qty })),
     });
     logActivity(req.user.id, 'export', 'products', null, `تصدير ${rows.length} صنف إلى Excel`);
     await sendWorkbook(res, wb, `المخزون-${new Date().toISOString().slice(0, 10)}.xlsx`);
@@ -231,9 +233,7 @@ router.post(
     if (!rows.length) throw new HttpError(400, 'لا توجد صفوف بيانات في الملف');
     if (rows.length > 5000) throw new HttpError(400, 'الحد الأقصى 5000 صف في الملف الواحد');
 
-    const writable = writableColumns(PRODUCT_COLUMNS)
-      .filter((c) => !c.importOnly)
-      .map((c) => c.key);
+    const writable = writableColumns(PRODUCT_COLUMNS).map((c) => c.key);
 
     const result = {
       total: rows.length, created: 0, updated: 0, skipped: 0, opening_units: 0,
