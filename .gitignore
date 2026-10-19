@@ -1,0 +1,17 @@
+node_modules/
+dist/
+build/
+.env
+.env.local
+*.log
+npm-debug.log*
+data/
+server/data/
+*.sqlite
+*.sqlite3
+*.db
+.DS_Store
+.vscode/
+.idea/
+release/
+electron/out/
