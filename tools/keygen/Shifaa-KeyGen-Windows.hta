@@ -1,0 +1,115 @@
+﻿<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="x-ua-compatible" content="ie=edge">
+<title>مولّد مفاتيح تفعيل نظام شفاء</title>
+<HTA:APPLICATION ID="ShifaaKeyGen" APPLICATIONNAME="Shifaa KeyGen" BORDER="dialog" CAPTION="yes" SHOWINTASKBAR="yes" SINGLEINSTANCE="yes" SYSMENU="yes" SCROLL="no" WINDOWSTATE="normal">
+<style>
+  * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Arial, sans-serif; }
+  body { margin:0; background:#14171f; color:#fff; padding:22px; }
+  .logo { width:52px;height:52px;border-radius:14px;background:#12856b;margin:0 auto 8px;text-align:center;line-height:52px;font-size:27px; }
+  h1 { text-align:center; font-size:19px; margin:4px 0 2px; }
+  .sub { text-align:center; color:#7fd6bd; font-size:12px; font-weight:700; margin-bottom:16px; }
+  label { display:block; font-size:12px; font-weight:800; color:#aeb6c6; margin:12px 0 6px; }
+  input { width:100%; padding:11px; border-radius:10px; border:1px solid #3a4050; background:#0d1017; color:#fff; font-size:16px; text-align:center; letter-spacing:2px; font-family:Consolas,monospace; text-transform:uppercase; }
+  button { width:100%; margin-top:14px; padding:12px; border:0; border-radius:10px; background:#12856b; color:#fff; font-size:15px; font-weight:900; cursor:pointer; }
+  .out { margin-top:16px; display:none; }
+  .key { background:#0d1017; border:1px dashed #42c09c; color:#7fd6bd; border-radius:10px; padding:14px; text-align:center; font-family:Consolas,monospace; font-size:24px; font-weight:bold; letter-spacing:4px; }
+  .hint { color:#8b93a5; font-size:11px; line-height:1.9; margin-top:14px; }
+  .err { color:#ff9c9c; font-size:12px; font-weight:700; margin-top:8px; display:none; text-align:center;}
+</style>
+<script>
+  window.resizeTo(470, 560);
+// ===== Shifaa KeyGen core (ES5, يعمل في المتصفح وHTA والNode للاختبار) =====
+var SHIFAA_SECRET = (function () {
+  var codes = [83,104,105,102,97,97,45,50,48,50,54,45,76,105,99,101,110,115,101,45,75,101,121,45,33,120,55,81,112,57,35,122,82,52,38,118,78,50,36,109,75,56];
+  var s = ''; for (var i = 0; i < codes.length; i++) s += String.fromCharCode(codes[i]); return s;
+})();
+var KEY_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+
+function sha256Hex(ascii) {
+  function rr(v, a) { return (v >>> a) | (v << (32 - a)); }
+  var K = [0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
+  var H = [0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
+  var bytes = [];
+  for (var i = 0; i < ascii.length; i++) bytes.push(ascii.charCodeAt(i) & 0xff);
+  var bitLen = bytes.length * 8;
+  bytes.push(0x80);
+  while (bytes.length % 64 !== 56) bytes.push(0);
+  for (var b = 7; b >= 0; b--) bytes.push((bitLen / Math.pow(2, b * 8)) & 0xff);
+  var w = new Array(64);
+  for (var chunk = 0; chunk < bytes.length; chunk += 64) {
+    for (var t = 0; t < 16; t++) w[t] = (bytes[chunk + t * 4] << 24) | (bytes[chunk + t * 4 + 1] << 16) | (bytes[chunk + t * 4 + 2] << 8) | bytes[chunk + t * 4 + 3];
+    for (t = 16; t < 64; t++) {
+      var s0 = rr(w[t - 15], 7) ^ rr(w[t - 15], 18) ^ (w[t - 15] >>> 3);
+      var s1 = rr(w[t - 2], 17) ^ rr(w[t - 2], 19) ^ (w[t - 2] >>> 10);
+      w[t] = (w[t - 16] + s0 + w[t - 7] + s1) | 0;
+    }
+    var a = H[0], b2 = H[1], c = H[2], d = H[3], e = H[4], f = H[5], g = H[6], h = H[7];
+    for (t = 0; t < 64; t++) {
+      var S1 = rr(e, 6) ^ rr(e, 11) ^ rr(e, 25);
+      var ch = (e & f) ^ (~e & g);
+      var temp1 = (h + S1 + ch + K[t] + w[t]) | 0;
+      var S0 = rr(a, 2) ^ rr(a, 13) ^ rr(a, 22);
+      var maj = (a & b2) ^ (a & c) ^ (b2 & c);
+      var temp2 = (S0 + maj) | 0;
+      h = g; g = f; f = e; e = (d + temp1) | 0; d = c; c = b2; b2 = a; a = (temp1 + temp2) | 0;
+    }
+    H[0] = (H[0] + a) | 0; H[1] = (H[1] + b2) | 0; H[2] = (H[2] + c) | 0; H[3] = (H[3] + d) | 0;
+    H[4] = (H[4] + e) | 0; H[5] = (H[5] + f) | 0; H[6] = (H[6] + g) | 0; H[7] = (H[7] + h) | 0;
+  }
+  var out = '';
+  for (var j = 0; j < 8; j++) { var hex = (H[j] >>> 0).toString(16); while (hex.length < 8) hex = '0' + hex; out += hex; }
+  return out;
+}
+function hexToBytes(hex) { var b = []; for (var i = 0; i < hex.length; i += 2) b.push(parseInt(hex.substr(i, 2), 16)); return b; }
+function strBytes(s) { var b = []; for (var i = 0; i < s.length; i++) b.push(s.charCodeAt(i) & 0xff); return b; }
+function bytesToStr(b) { var s = ''; for (var i = 0; i < b.length; i++) s += String.fromCharCode(b[i]); return s; }
+function hmacSha256Hex(key, msg) {
+  var k = strBytes(key);
+  if (k.length > 64) k = hexToBytes(sha256Hex(key));
+  while (k.length < 64) k.push(0);
+  var ipad = '', opad = '';
+  for (var i = 0; i < 64; i++) { ipad += String.fromCharCode(k[i] ^ 0x36); opad += String.fromCharCode(k[i] ^ 0x5c); }
+  var inner = sha256Hex(ipad + msg);
+  return sha256Hex(opad + bytesToStr(hexToBytes(inner)));
+}
+function normalizeCode(v) { return String(v || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
+function generateKey(deviceId) {
+  var digest = hexToBytes(hmacSha256Hex(SHIFAA_SECRET, 'SHIFAA|' + normalizeCode(deviceId)));
+  var key = '';
+  for (var i = 0; i < 8; i++) key += KEY_ALPHABET.charAt(digest[i] % 32);
+  return key.slice(0, 4) + '-' + key.slice(4, 8);
+}
+// ===== نهاية القلب =====
+
+function gen() {
+  var dev = document.getElementById('dev').value;
+  if (normalizeCode(dev).length < 12) { document.getElementById('err').style.display='block'; return; }
+  document.getElementById('err').style.display='none';
+  document.getElementById('key').innerText = generateKey(dev);
+  document.getElementById('out').style.display='block';
+}
+function copyKey() {
+  var k = document.getElementById('key').innerText;
+  if (window.clipboardData) window.clipboardData.setData('Text', k);
+}
+</script>
+</head>
+<body>
+  <div class="logo">💊</div>
+  <h1>مولّد مفاتيح التفعيل</h1>
+  <div class="sub">نظام شفاء — المطوّر للحلول الرقمية (أداة البائع فقط)</div>
+  <label>معرّف جهاز العميل (كما يظهر في شاشة التفعيل)</label>
+  <input id="dev" placeholder="XXXX-XXXX-XXXX">
+  <div class="err" id="err">أدخل معرّف الجهاز كاملاً (12 رمزاً)</div>
+  <button onclick="gen()">توليد مفتاح التفعيل</button>
+  <div class="out" id="out">
+    <label>مفتاح التفعيل لهذا الجهاز</label>
+    <div class="key" id="key"></div>
+    <button onclick="copyKey()" style="background:#2a3040;font-size:13px;padding:10px;">نسخ المفتاح</button>
+  </div>
+  <div class="hint">• المفتاح يعمل على هذا الجهاز فقط.<br>• احتفظ بهذه الأداة سرّاً — لا ترسلها للعملاء.</div>
+</body>
+</html>
