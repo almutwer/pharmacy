@@ -105,7 +105,7 @@ npm run app:build                      # بناء تطبيق ويندوز (Elect
 ## 8) قفل التفعيل بمعرّف الجهاز (الحماية من نقل النسخة)
 
 - `server/src/lib/license.js`: معرّف الجهاز `XXXX-XXXX-XXXX` من بصمة (اسم الجهاز + أول MAC فعّال + النظام والمعالج). المفتاح = `HMAC-SHA256(سر التفعيل, "SHIFAA|"+المعرّف)` ← 8 رموز `XXXX-XXXX` بأبجدية بلا رموز متشابهة.
-- `server/src/routes/license.js`: `GET /api/license/status` و`POST /api/license/activate` + الحارس `licenseGuard` (يرفض 423 قبل التفعيل، ويُستثنى في `NODE_ENV=test`). ربطه في `server/src/index.js` بسطرين فقط، وشاشة التفعيل `client/src/components/LicenseGate.jsx` ملفوفة حول التطبيق في `main.jsx`.
+- `server/src/routes/license.js`: `GET /api/license/status` و`POST /api/license/activate` + الحارس `licenseGuard` (يرفض 423 قبل التفعيل على مسارات `/api/` فقط — ملفات الواجهة لا تُحجب أبدًا حتى تظهر شاشة التفعيل، ويُستثنى في `NODE_ENV=test`). ربطه في `server/src/index.js` بسطرين فقط، وشاشة التفعيل `client/src/components/LicenseGate.jsx` ملفوفة حول التطبيق في `main.jsx`.
 - التفعيل يُحفظ في `DATA_DIR/license.json` ويُعاد التحقق منه كل إقلاع مقابل الجهاز الحالي — نقل مجلد البيانات لجهاز آخر يُبطل التفعيل.
 - **أداة البائع:** `tools/keygen/Shifaa-KeyGen-Android.html` (ملف واحد للهاتف) و`Shifaa-KeyGen-Windows.hta` (تطبيق ويندوز بالنقر، بلا تثبيت) — نفس الخوارزمية، وقد تُحقّق من تطابقهما مع الخادم. تغيير السرّ في `license.js` يُبطل كل المفاتيح السابقة. تغيير اسم الجهاز أو كرت الشبكة يغيّر المعرّف ويستلزم مفتاحًا جديدًا. مستوى الحماية: يمنع النسخ العادي (السرّ مموّه داخل الكود، ليس تشفيرًا عسكريًا).
 
